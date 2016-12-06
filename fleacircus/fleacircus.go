@@ -3,24 +3,62 @@ package main
 import (
 	"flag"
 	"fleacircus"
-	"fmt"
 )
 
-var manager fleacircus.Manager
+var m fleacircus.Membership
 
 func main() {
-	var port int
 	var node string
+	var heartbeat_millis int
+	var listen_port int
+	var max_nodes_to_ping int
+	var max_nodes_to_transmit int
+	var millis_to_dead int
+	var millis_to_stale int
 
-	flag.IntVar(&port, "port", int(fleacircus.DEFAULT_PORT), "The bind port")
 	flag.StringVar(&node, "node", "", "Initial node")
+
+	flag.IntVar(&listen_port, "port",
+		int(fleacircus.GetListenPort()),
+		"The bind port")
+
+	flag.IntVar(&heartbeat_millis, "heartbeat",
+		int(fleacircus.GetHeartbeatMillis()),
+		"The heartbeat frequency in milliseconds")
+
+	flag.IntVar(&max_nodes_to_ping, "max-ping",
+		int(fleacircus.GetMaxNodesToPing()),
+		" The maximum number of nodes to ping per heartbeat. "+
+			"Setting to 0 is \"all known nodes\"")
+
+	flag.IntVar(&max_nodes_to_transmit, "max-transmit",
+		int(fleacircus.GetMaxNodesToTransmit()),
+		"The maximum number of nodes of data to transmit in a ping. "+
+			"Setting to 0 is \"all known nodes\"")
+
+	flag.IntVar(&millis_to_dead, "millis-dead",
+		int(fleacircus.GetDeadMillis()),
+		"Millis from last update before a node is marked stale")
+
+	flag.IntVar(&millis_to_stale, "millis-stale",
+		int(fleacircus.GetStaleMillis()),
+		"Millis from last update before a node is marked dead and removed "+
+			"from the nodes list")
 
 	flag.Parse()
 
-	manager = fleacircus.Manager{}
-	manager.AddNode(node)
-	manager.SetPort(port)
-	manager.Begin()
+	fleacircus.SetListenPort(listen_port)
+	fleacircus.SetHeartbeatMillis(heartbeat_millis)
+	fleacircus.SetMaxNodesToPing(max_nodes_to_ping)
+	fleacircus.SetMaxNodesToTransmit(max_nodes_to_transmit)
+	fleacircus.SetDeadMillis(millis_to_dead)
+	fleacircus.SetStaleMillis(millis_to_stale)
 
-	fmt.Println("Done")
+	m = fleacircus.Membership{}
+
+	if node != "" {
+		m.AddNode(node)
+	}
+
+	m.Begin()
 }

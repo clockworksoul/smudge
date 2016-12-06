@@ -11,85 +11,18 @@ import (
 	"time"
 )
 
-const (
-	// The port to listen on my default.
-	DEFAULT_PORT uint16 = 9999
-
-	// The default heartbeat frequency in milliseconds for each node.
-	DEFAULT_HEARTBEAT_MILLIS uint16 = 1000
-
-	// The default number of nodes to ping per heartbeat.
-	// Setting to 0 is "all known nodes". This is not wise
-	// In very large systems.
-	DEFAULT_MAX_NODES_TO_PING uint16 = 100
-
-	// The default number of nodes of data to transmit in a ping.
-	// Setting to 0 is "all known nodes". This is not wise
-	// In very large systems.
-	DEFAULT_MAX_NODES_TO_TRANSMIT uint16 = 1000
-
-	// Millils from last update before a node is marked stale
-	DEFAUT_FLAG_STALE_MILLIS uint16 = 2000
-
-	// Millils from last update before a node is marked stale
-	DEFAULT_FLAG_DEAD_MILLIS uint16 = 5000
-)
-
 func GetNowInMillis() uint32 {
 	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
 }
 
-type Manager struct {
+type Membership struct {
 	nodes map[string]*Node
-
-	port uint16
-
-	// Time between heartbeats
-	heartbeat_millis uint16
-
-	// Millils from last update before a node is marked stale
-	flag_stale_millis uint16
-
-	// Millils from last update before a node is marked stale
-	flag_dead_millis uint16
-}
-
-func (m *Manager) GetFlagDeadMillis() uint16 {
-	if m.flag_dead_millis == 0 {
-		m.flag_dead_millis = DEFAULT_FLAG_DEAD_MILLIS
-	}
-
-	return m.flag_dead_millis
-}
-
-func (m *Manager) SetFlagDeadMillis(val int) {
-	if val == 0 {
-		m.flag_dead_millis = DEFAULT_PORT
-	} else {
-		m.flag_dead_millis = uint16(val)
-	}
-}
-
-func (m *Manager) GetPort() uint16 {
-	if m.port == 0 {
-		m.port = DEFAULT_PORT
-	}
-
-	return m.port
-}
-
-func (m *Manager) SetPort(newPort int) {
-	if newPort == 0 {
-		m.port = DEFAULT_PORT
-	} else {
-		m.port = uint16(newPort)
-	}
 }
 
 /**
  * Explicitly adds a node to this server's internal nodes list.
  */
-func (m *Manager) AddNode(name string) {
+func (m *Membership) AddNode(name string) {
 	host, port, err := parseNodeAddress(name)
 
 	if err != nil {
@@ -102,11 +35,11 @@ func (m *Manager) AddNode(name string) {
 	m.registerNewNode(&node)
 }
 
-func (m *Manager) Begin() {
-	go m.Listen(m.GetPort())
+func (m *Membership) Begin() {
+	go m.Listen(GetListenPort())
 
 	for {
-		time.Sleep(time.Millisecond * 1000)
+		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
 		m.PruneDeadFromList()
 		m.PingAllNodes()
 	}
@@ -115,13 +48,15 @@ func (m *Manager) Begin() {
 /**
  * Loops through the nodes map and removed the dead ones.
  */
-func (m *Manager) PruneDeadFromList() {
+func (m *Membership) PruneDeadFromList() {
 	for k, n := range m.nodes {
 		node := *n
 
-		if n.Age() > uint32(m.GetFlagDeadMillis()) {
-			fmt.Println("Node removed [dead]:", node)
+		if n.Age() > uint32(GetDeadMillis()) {
+			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), node)
 			delete(m.nodes, k)
+		} else {
+			fmt.Println("DEBUG ", node, "is only", n.Age(), "ms old")
 		}
 	}
 }
@@ -130,7 +65,7 @@ func (m *Manager) PruneDeadFromList() {
  * Starts the server on the indicated node. This is a blocking operation,
  * so you probably want to execute this as a gofunc.
  */
-func (m *Manager) Listen(port uint16) {
+func (m *Membership) Listen(port int) {
 	// Listens on port
 	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
@@ -150,11 +85,11 @@ func (m *Manager) Listen(port uint16) {
 		fmt.Println("Accepted:", conn)
 
 		// Handle the connection
-		go m.handleManagerPing(&conn)
+		go m.handleMembershipPing(&conn)
 	}
 }
 
-func (m *Manager) PingAllNodes() {
+func (m *Membership) PingAllNodes() {
 	fmt.Println(len(m.nodes), "nodes")
 
 	for _, node := range m.nodes {
@@ -166,7 +101,7 @@ func (m *Manager) PingAllNodes() {
  * Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
  * PingAllNodes().
  */
-func (m *Manager) PingNNodes(count int) {
+func (m *Membership) PingNNodes(count int) {
 	rnodes := m.getRandomNodesSlice(count)
 
 	// Loop over nodes and ping them
@@ -179,7 +114,7 @@ func (m *Manager) PingNNodes(count int) {
  * User-friendly method to explicitly ping a node. Calls the low-level
  * doPingNode(), and outputs a mesaage if it fails.
  */
-func (m *Manager) PingNode(node *Node) error {
+func (m *Membership) PingNode(node *Node) error {
 	err := m.doPingNode(node)
 	if err != nil {
 		fmt.Println("Failure to ping", node, "->", err)
@@ -188,7 +123,7 @@ func (m *Manager) PingNode(node *Node) error {
 	return err
 }
 
-func (m *Manager) doPingNode(node *Node) error {
+func (m *Membership) doPingNode(node *Node) error {
 	conn, err := net.Dial("tcp", node.Address())
 	if err != nil {
 		return err
@@ -201,6 +136,8 @@ func (m *Manager) doPingNode(node *Node) error {
 		return err
 	}
 
+	// Construct the list of nodes we're going to send with the ping
+	//
 	msgNodes := m.getRandomNodesSlice(0)
 
 	// Send the length
@@ -223,6 +160,7 @@ func (m *Manager) doPingNode(node *Node) error {
 	}
 
 	// Receive the response
+	//
 	var response string
 	err = gob.NewDecoder(conn).Decode(&response)
 	if err != nil {
@@ -240,18 +178,16 @@ func (m *Manager) doPingNode(node *Node) error {
  * If size is < len(m.nodes), that many nodes are randomly chosen and
  * returned.
  */
-func (m *Manager) getRandomNodesSlice(size int) []Node {
+func (m *Membership) getRandomNodesSlice(size int) []Node {
 	// Copy the complete nodes map into a slice
 	rnodes := make([]Node, 0, len(m.nodes))
 	i := 0
 	for _, n := range m.nodes {
 		// If a node is stale, we skip it.
-		if n.Age() < uint32(m.flag_stale_millis) {
-			go m.PingNode(n)
+		if n.Age() < uint32(GetStaleMillis()) {
+			rnodes = append(rnodes, *n)
+			i++
 		}
-
-		rnodes = append(rnodes, *n)
-		i++
 	}
 
 	// If size is less than the entire set of nodes, shuffle and get a subset.
@@ -272,13 +208,13 @@ func (m *Manager) getRandomNodesSlice(size int) []Node {
 	return rnodes
 }
 
-func (m *Manager) handleManagerPing(c *net.Conn) {
+func (m *Membership) handleMembershipPing(c *net.Conn) {
 	var msgNodes []Node
 	var verb string
 	var err error
 
 	// Every ping comes in two parts: the verb and the node list.
-	// For now, the only supported very is PING; later we'll support FORWARD
+	// For now, the only supported verb is PING; later we'll support FORWARD
 	// and NFPING ("non-forwarding ping") for a full SWIM implementation.
 
 	decoder := gob.NewDecoder(*c)
@@ -331,11 +267,16 @@ func (m *Manager) handleManagerPing(c *net.Conn) {
 
 	// Finally, merge the list we got with received from the ping with our own list.
 	for _, node := range msgNodes {
+		fmt.Println("Received node: ", node)
 		if existingNode, ok := m.nodes[node.Address()]; ok {
-			// We have this node in our list. Touch it to update the timestamp.
-			existingNode.Touch()
+			if node.Timestamp > existingNode.Timestamp {
+				// We have this node in our list. Touch it to update the timestamp.
+				existingNode.Touch()
 
-			fmt.Println("Node exists; is now:", existingNode)
+				fmt.Println("Node exists; is now:", existingNode)
+			} else {
+				fmt.Println("Node exists but timestamp is older; ignoring")
+			}
 		} else {
 			// We do not have this node in our list. Add it.
 			m.nodes[node.Address()] = &node
@@ -365,13 +306,13 @@ func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
 		}
 	} else {
 		host = hostAndMaybePort
-		port = DEFAULT_PORT
+		port = uint16(DEFAULT_LISTEN_PORT)
 	}
 
 	return host, port, err
 }
 
-func (m *Manager) registerNewNode(node *Node) {
+func (m *Membership) registerNewNode(node *Node) {
 	if m.nodes == nil {
 		m.nodes = make(map[string]*Node)
 	}
