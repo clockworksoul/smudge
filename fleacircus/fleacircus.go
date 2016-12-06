@@ -5,8 +5,6 @@ import (
 	"fleacircus"
 )
 
-var m fleacircus.Membership
-
 func main() {
 	var node string
 	var heartbeat_millis int
@@ -54,11 +52,9 @@ func main() {
 	fleacircus.SetDeadMillis(millis_to_dead)
 	fleacircus.SetStaleMillis(millis_to_stale)
 
-	m = fleacircus.Membership{}
-
 	if node != "" {
-		m.AddNode(node)
+		fleacircus.AddNode(node)
 	}
 
-	m.Begin()
+	fleacircus.Begin()
 }

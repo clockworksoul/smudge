@@ -1,28 +1,68 @@
 package fleacircus
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/gob"
 	"errors"
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
+var nodes map[string]*Node
+
+var uid string
+
 func GetNowInMillis() uint32 {
 	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
 }
 
-type Membership struct {
-	nodes map[string]*Node
+func generateIdentifier() string {
+	bytes := make([]byte, 0, 1000)
+
+	// Begin with the byte value of the current nano time
+	//
+	now_bytes, _ := time.Now().MarshalBinary()
+	for _, b := range now_bytes {
+		bytes = append(bytes, b)
+	}
+
+	// Append the hostname of the current machine
+	//
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Println("WARNING: Could not resolve hostname. Using 'localhost'")
+		hostname = "localhost"
+	}
+
+	hostname_bytes := make([]byte, len(hostname), len(hostname))
+	copy(hostname_bytes[:], hostname)
+	for _, b := range hostname_bytes {
+		bytes = append(bytes, b)
+	}
+
+	// Append some random data
+	//
+	rand := rand.Int63()
+	var i uint
+	for i = 0; i < 8; i++ {
+		bytes = append(bytes, byte(rand>>i))
+	}
+
+	sha256 := sha256.Sum256(bytes)
+
+	return base64.StdEncoding.EncodeToString(sha256[:])
 }
 
 /**
  * Explicitly adds a node to this server's internal nodes list.
  */
-func (m *Membership) AddNode(name string) {
+func AddNode(name string) {
 	host, port, err := parseNodeAddress(name)
 
 	if err != nil {
@@ -32,31 +72,29 @@ func (m *Membership) AddNode(name string) {
 
 	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
 
-	m.registerNewNode(&node)
+	registerNewNode(node)
 }
 
-func (m *Membership) Begin() {
-	go m.Listen(GetListenPort())
+func Begin() {
+	go Listen(GetListenPort())
+
+	fmt.Println("UID:", generateIdentifier())
 
 	for {
 		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
-		m.PruneDeadFromList()
-		m.PingAllNodes()
+		PruneDeadFromList()
+		PingAllNodes()
 	}
 }
 
 /**
- * Loops through the nodes map and removed the dead ones.
+ * Loops through the nodes map and removes the dead ones.
  */
-func (m *Membership) PruneDeadFromList() {
-	for k, n := range m.nodes {
-		node := *n
-
+func PruneDeadFromList() {
+	for k, n := range nodes {
 		if n.Age() > uint32(GetDeadMillis()) {
-			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), node)
-			delete(m.nodes, k)
-		} else {
-			fmt.Println("DEBUG ", node, "is only", n.Age(), "ms old")
+			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
+			delete(nodes, k)
 		}
 	}
 }
@@ -65,7 +103,7 @@ func (m *Membership) PruneDeadFromList() {
  * Starts the server on the indicated node. This is a blocking operation,
  * so you probably want to execute this as a gofunc.
  */
-func (m *Membership) Listen(port int) {
+func Listen(port int) {
 	// Listens on port
 	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
@@ -82,18 +120,16 @@ func (m *Membership) Listen(port int) {
 			continue
 		}
 
-		fmt.Println("Accepted:", conn)
-
 		// Handle the connection
-		go m.handleMembershipPing(&conn)
+		go handleMembershipPing(&conn)
 	}
 }
 
-func (m *Membership) PingAllNodes() {
-	fmt.Println(len(m.nodes), "nodes")
+func PingAllNodes() {
+	fmt.Println(len(nodes), "nodes")
 
-	for _, node := range m.nodes {
-		go m.PingNode(node)
+	for _, node := range nodes {
+		go PingNode(node)
 	}
 }
 
@@ -101,12 +137,12 @@ func (m *Membership) PingAllNodes() {
  * Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
  * PingAllNodes().
  */
-func (m *Membership) PingNNodes(count int) {
-	rnodes := m.getRandomNodesSlice(count)
+func PingNNodes(count int) {
+	rnodes := getRandomNodesSlice(count)
 
 	// Loop over nodes and ping them
 	for _, node := range rnodes {
-		go m.PingNode(&node)
+		go PingNode(&node)
 	}
 }
 
@@ -114,8 +150,8 @@ func (m *Membership) PingNNodes(count int) {
  * User-friendly method to explicitly ping a node. Calls the low-level
  * doPingNode(), and outputs a mesaage if it fails.
  */
-func (m *Membership) PingNode(node *Node) error {
-	err := m.doPingNode(node)
+func PingNode(node *Node) error {
+	err := doPingNode(node)
 	if err != nil {
 		fmt.Println("Failure to ping", node, "->", err)
 	}
@@ -123,7 +159,7 @@ func (m *Membership) PingNode(node *Node) error {
 	return err
 }
 
-func (m *Membership) doPingNode(node *Node) error {
+func doPingNode(node *Node) error {
 	conn, err := net.Dial("tcp", node.Address())
 	if err != nil {
 		return err
@@ -136,9 +172,14 @@ func (m *Membership) doPingNode(node *Node) error {
 		return err
 	}
 
+	err = encoder.Encode(uid)
+	if err != nil {
+		return err
+	}
+
 	// Construct the list of nodes we're going to send with the ping
 	//
-	msgNodes := m.getRandomNodesSlice(0)
+	msgNodes := getRandomNodesSlice(0)
 
 	// Send the length
 	//
@@ -163,6 +204,7 @@ func (m *Membership) doPingNode(node *Node) error {
 	//
 	var response string
 	err = gob.NewDecoder(conn).Decode(&response)
+
 	if err != nil {
 		fmt.Println("Error receiving response:", err)
 		return err
@@ -174,28 +216,33 @@ func (m *Membership) doPingNode(node *Node) error {
 }
 
 /**
- * Returns a slice of Node[] of from 0 to len(m.nodes) nodes.
- * If size is < len(m.nodes), that many nodes are randomly chosen and
+ * Returns a slice of Node[] of from 0 to len(nodes) nodes.
+ * If size is < len(nodes), that many nodes are randomly chosen and
  * returned.
  */
-func (m *Membership) getRandomNodesSlice(size int) []Node {
+func getRandomNodesSlice(size int) []Node {
+	// If size is less than the entire set of nodes, shuffle and get a subset.
+	if size <= 0 || size > len(nodes) {
+		size = len(nodes)
+	}
+
 	// Copy the complete nodes map into a slice
-	rnodes := make([]Node, 0, len(m.nodes))
-	i := 0
-	for _, n := range m.nodes {
-		// If a node is stale, we skip it.
+	rnodes := make([]Node, 0, size)
+
+	var c int
+	for _, n := range nodes {
+		// If a node is not stale, we include it.
 		if n.Age() < uint32(GetStaleMillis()) {
 			rnodes = append(rnodes, *n)
-			i++
+			c++
+
+			if c >= size {
+				break
+			}
 		}
 	}
 
-	// If size is less than the entire set of nodes, shuffle and get a subset.
-	if size <= 0 || size > len(m.nodes) {
-		size = len(m.nodes)
-	}
-
-	if size < len(m.nodes) {
+	if size < len(rnodes) {
 		// Shuffle the slice
 		for i := range rnodes {
 			j := rand.Intn(i + 1)
@@ -208,9 +255,10 @@ func (m *Membership) getRandomNodesSlice(size int) []Node {
 	return rnodes
 }
 
-func (m *Membership) handleMembershipPing(c *net.Conn) {
+func handleMembershipPing(c *net.Conn) {
 	var msgNodes []Node
 	var verb string
+	var identifier string
 	var err error
 
 	// Every ping comes in two parts: the verb and the node list.
@@ -225,8 +273,14 @@ func (m *Membership) handleMembershipPing(c *net.Conn) {
 	if err != nil {
 		fmt.Println("Error receiving verb:", err)
 		return
-	} else {
-		fmt.Println("Received verb: ", verb)
+	}
+
+	// First, receive the identifier
+	//
+	err = decoder.Decode(&identifier)
+	if err != nil {
+		fmt.Println("Error receiving identifier:", err)
+		return
 	}
 
 	// Second, receive the list
@@ -258,33 +312,43 @@ func (m *Membership) handleMembershipPing(c *net.Conn) {
 		msgNodes = append(msgNodes, newNode)
 	}
 
-	// Handle the verb
-	//
-	switch {
-	case verb == "PING":
-		err = gob.NewEncoder(*c).Encode("ACK")
-	}
+	if identifier == uid {
+		gob.NewEncoder(*c).Encode("SELF")
+	} else {
+		// Handle the verb
+		//
+		switch {
+		case verb == "PING":
+			err = gob.NewEncoder(*c).Encode("ACK")
+		}
 
-	// Finally, merge the list we got with received from the ping with our own list.
-	for _, node := range msgNodes {
-		fmt.Println("Received node: ", node)
-		if existingNode, ok := m.nodes[node.Address()]; ok {
-			if node.Timestamp > existingNode.Timestamp {
-				// We have this node in our list. Touch it to update the timestamp.
-				existingNode.Touch()
+		// Finally, merge the list from the ping with our own list.
+		for _, msgNode := range msgNodes {
+			if existingNode, ok := nodes[msgNode.Address()]; ok {
+				if msgNode.Timestamp > existingNode.Timestamp {
+					// We have this node in our list. Touch it to update the timestamp.
+					existingNode.Touch()
 
-				fmt.Println("Node exists; is now:", existingNode)
+					fmt.Println("Node exists; is now:", existingNode)
+				} else {
+					fmt.Println("Node exists but timestamp is older; ignoring")
+				}
 			} else {
-				fmt.Println("Node exists but timestamp is older; ignoring")
+				// We do not have this node in our list. Add it.
+				fmt.Println("New node identified:", msgNode)
+				registerNewNode(msgNode)
 			}
-		} else {
-			// We do not have this node in our list. Add it.
-			m.nodes[node.Address()] = &node
-			fmt.Println("New node identified:", node)
 		}
 	}
 
 	(*c).Close()
+}
+
+func init() {
+	if nodes == nil {
+		nodes = make(map[string]*Node)
+		uid = generateIdentifier()
+	}
 }
 
 func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
@@ -312,14 +376,12 @@ func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
 	return host, port, err
 }
 
-func (m *Membership) registerNewNode(node *Node) {
-	if m.nodes == nil {
-		m.nodes = make(map[string]*Node)
-	}
-
+func registerNewNode(node Node) {
 	fmt.Println("Adding host:", node.Address())
 
-	m.nodes[node.Address()] = node
+	nodes[node.Address()] = &node
 
-	fmt.Println("NOW:", len(m.nodes))
+	for k, v := range nodes {
+		fmt.Printf(" k=%s v=%v\n", k, v)
+	}
 }
