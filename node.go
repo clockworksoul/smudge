@@ -12,21 +12,21 @@ type Node struct {
 /**
  * The time since we last heard from this node, in milliseconds.
  */
-func (this *Node) Age() uint32 {
-	return GetNowInMillis() - this.Timestamp
+func (n *Node) Age() uint32 {
+	return GetNowInMillis() - n.Timestamp
 }
 
-func (this *Node) Address() string {
-	if this.address == "" {
-		this.address = fmt.Sprintf("%s:%d", this.Host, this.Port)
+func (n *Node) Address() string {
+	if n.address == "" {
+		n.address = fmt.Sprintf("%s:%d", n.Host, n.Port)
 	}
 
-	return this.address
+	return n.address
 }
 
 /**
  * Updates the timestamp to the local time in nanos
  */
-func (this *Node) Touch() {
-	this.Timestamp = GetNowInMillis()
+func (n *Node) Touch() {
+	n.Timestamp = GetNowInMillis()
 }

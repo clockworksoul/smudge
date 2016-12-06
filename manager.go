@@ -54,42 +54,42 @@ type Manager struct {
 	flag_dead_millis uint16
 }
 
-func (this *Manager) GetFlagDeadMillis() uint16 {
-	if this.flag_dead_millis == 0 {
-		this.flag_dead_millis = DEFAULT_FLAG_DEAD_MILLIS
+func (m *Manager) GetFlagDeadMillis() uint16 {
+	if m.flag_dead_millis == 0 {
+		m.flag_dead_millis = DEFAULT_FLAG_DEAD_MILLIS
 	}
 
-	return this.flag_dead_millis
+	return m.flag_dead_millis
 }
 
-func (this *Manager) SetFlagDeadMillis(val int) {
+func (m *Manager) SetFlagDeadMillis(val int) {
 	if val == 0 {
-		this.flag_dead_millis = DEFAULT_PORT
+		m.flag_dead_millis = DEFAULT_PORT
 	} else {
-		this.flag_dead_millis = uint16(val)
+		m.flag_dead_millis = uint16(val)
 	}
 }
 
-func (this *Manager) GetPort() uint16 {
-	if this.port == 0 {
-		this.port = DEFAULT_PORT
+func (m *Manager) GetPort() uint16 {
+	if m.port == 0 {
+		m.port = DEFAULT_PORT
 	}
 
-	return this.port
+	return m.port
 }
 
-func (this *Manager) SetPort(newPort int) {
+func (m *Manager) SetPort(newPort int) {
 	if newPort == 0 {
-		this.port = DEFAULT_PORT
+		m.port = DEFAULT_PORT
 	} else {
-		this.port = uint16(newPort)
+		m.port = uint16(newPort)
 	}
 }
 
 /**
  * Explicitly adds a node to this server's internal nodes list.
  */
-func (this *Manager) AddNode(name string) {
+func (m *Manager) AddNode(name string) {
 	host, port, err := parseNodeAddress(name)
 
 	if err != nil {
@@ -99,29 +99,29 @@ func (this *Manager) AddNode(name string) {
 
 	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
 
-	this.registerNewNode(&node)
+	m.registerNewNode(&node)
 }
 
-func (this *Manager) Begin() {
-	go this.Listen(this.GetPort())
+func (m *Manager) Begin() {
+	go m.Listen(m.GetPort())
 
 	for {
 		time.Sleep(time.Millisecond * 1000)
-		this.PruneDeadFromList()
-		this.PingAllNodes()
+		m.PruneDeadFromList()
+		m.PingAllNodes()
 	}
 }
 
 /**
  * Loops through the nodes map and removed the dead ones.
  */
-func (this *Manager) PruneDeadFromList() {
-	for k, n := range this.nodes {
+func (m *Manager) PruneDeadFromList() {
+	for k, n := range m.nodes {
 		node := *n
 
-		if n.Age() > uint32(this.GetFlagDeadMillis()) {
+		if n.Age() > uint32(m.GetFlagDeadMillis()) {
 			fmt.Println("Node removed [dead]:", node)
-			delete(this.nodes, k)
+			delete(m.nodes, k)
 		}
 	}
 }
@@ -130,7 +130,7 @@ func (this *Manager) PruneDeadFromList() {
  * Starts the server on the indicated node. This is a blocking operation,
  * so you probably want to execute this as a gofunc.
  */
-func (this *Manager) Listen(port uint16) {
+func (m *Manager) Listen(port uint16) {
 	// Listens on port
 	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
@@ -150,15 +150,15 @@ func (this *Manager) Listen(port uint16) {
 		fmt.Println("Accepted:", conn)
 
 		// Handle the connection
-		go this.handleManagerPing(&conn)
+		go m.handleManagerPing(&conn)
 	}
 }
 
-func (this *Manager) PingAllNodes() {
-	fmt.Println(len(this.nodes), "nodes")
+func (m *Manager) PingAllNodes() {
+	fmt.Println(len(m.nodes), "nodes")
 
-	for _, node := range this.nodes {
-		go this.PingNode(node)
+	for _, node := range m.nodes {
+		go m.PingNode(node)
 	}
 }
 
@@ -166,12 +166,12 @@ func (this *Manager) PingAllNodes() {
  * Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
  * PingAllNodes().
  */
-func (this *Manager) PingNNodes(count int) {
-	rnodes := this.getRandomNodesSlice(count)
+func (m *Manager) PingNNodes(count int) {
+	rnodes := m.getRandomNodesSlice(count)
 
 	// Loop over nodes and ping them
 	for _, node := range rnodes {
-		go this.PingNode(&node)
+		go m.PingNode(&node)
 	}
 }
 
@@ -179,8 +179,8 @@ func (this *Manager) PingNNodes(count int) {
  * User-friendly method to explicitly ping a node. Calls the low-level
  * doPingNode(), and outputs a mesaage if it fails.
  */
-func (this *Manager) PingNode(node *Node) error {
-	err := this.doPingNode(node)
+func (m *Manager) PingNode(node *Node) error {
+	err := m.doPingNode(node)
 	if err != nil {
 		fmt.Println("Failure to ping", node, "->", err)
 	}
@@ -188,7 +188,7 @@ func (this *Manager) PingNode(node *Node) error {
 	return err
 }
 
-func (this *Manager) doPingNode(node *Node) error {
+func (m *Manager) doPingNode(node *Node) error {
 	conn, err := net.Dial("tcp", node.Address())
 	if err != nil {
 		return err
@@ -201,7 +201,7 @@ func (this *Manager) doPingNode(node *Node) error {
 		return err
 	}
 
-	msgNodes := this.getRandomNodesSlice(0)
+	msgNodes := m.getRandomNodesSlice(0)
 
 	// Send the length
 	//
@@ -236,18 +236,18 @@ func (this *Manager) doPingNode(node *Node) error {
 }
 
 /**
- * Returns a slice of Node[] of from 0 to len(this.nodes) nodes.
- * If size is < len(this.nodes), that many nodes are randomly chosen and
+ * Returns a slice of Node[] of from 0 to len(m.nodes) nodes.
+ * If size is < len(m.nodes), that many nodes are randomly chosen and
  * returned.
  */
-func (this *Manager) getRandomNodesSlice(size int) []Node {
+func (m *Manager) getRandomNodesSlice(size int) []Node {
 	// Copy the complete nodes map into a slice
-	rnodes := make([]Node, 0, len(this.nodes))
+	rnodes := make([]Node, 0, len(m.nodes))
 	i := 0
-	for _, n := range this.nodes {
+	for _, n := range m.nodes {
 		// If a node is stale, we skip it.
-		if n.Age() < uint32(this.flag_stale_millis) {
-			go this.PingNode(n)
+		if n.Age() < uint32(m.flag_stale_millis) {
+			go m.PingNode(n)
 		}
 
 		rnodes = append(rnodes, *n)
@@ -255,11 +255,11 @@ func (this *Manager) getRandomNodesSlice(size int) []Node {
 	}
 
 	// If size is less than the entire set of nodes, shuffle and get a subset.
-	if size <= 0 || size > len(this.nodes) {
-		size = len(this.nodes)
+	if size <= 0 || size > len(m.nodes) {
+		size = len(m.nodes)
 	}
 
-	if size < len(this.nodes) {
+	if size < len(m.nodes) {
 		// Shuffle the slice
 		for i := range rnodes {
 			j := rand.Intn(i + 1)
@@ -272,7 +272,7 @@ func (this *Manager) getRandomNodesSlice(size int) []Node {
 	return rnodes
 }
 
-func (this *Manager) handleManagerPing(c *net.Conn) {
+func (m *Manager) handleManagerPing(c *net.Conn) {
 	var msgNodes []Node
 	var verb string
 	var err error
@@ -331,14 +331,14 @@ func (this *Manager) handleManagerPing(c *net.Conn) {
 
 	// Finally, merge the list we got with received from the ping with our own list.
 	for _, node := range msgNodes {
-		if existingNode, ok := this.nodes[node.Address()]; ok {
+		if existingNode, ok := m.nodes[node.Address()]; ok {
 			// We have this node in our list. Touch it to update the timestamp.
 			existingNode.Touch()
 
 			fmt.Println("Node exists; is now:", existingNode)
 		} else {
 			// We do not have this node in our list. Add it.
-			this.nodes[node.Address()] = &node
+			m.nodes[node.Address()] = &node
 			fmt.Println("New node identified:", node)
 		}
 	}
@@ -371,14 +371,14 @@ func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
 	return host, port, err
 }
 
-func (this *Manager) registerNewNode(node *Node) {
-	if this.nodes == nil {
-		this.nodes = make(map[string]*Node)
+func (m *Manager) registerNewNode(node *Node) {
+	if m.nodes == nil {
+		m.nodes = make(map[string]*Node)
 	}
 
 	fmt.Println("Adding host:", node.Address())
 
-	this.nodes[node.Address()] = node
+	m.nodes[node.Address()] = node
 
-	fmt.Println("NOW:", len(this.nodes))
+	fmt.Println("NOW:", len(m.nodes))
 }
