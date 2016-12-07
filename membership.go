@@ -14,9 +14,18 @@ import (
 	"time"
 )
 
+/**
+ * Currenty active nodes.
+ */
 var nodes map[string]*Node
 
-var uid string
+/**
+ * Recently dead nodes. Periodically a random dead node will be allowed to
+ * rejoin the living.
+ */
+var dnodes []Node
+
+var current_heartbeat uint32
 
 func GetNowInMillis() uint32 {
 	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
@@ -78,12 +87,36 @@ func AddNode(name string) {
 func Begin() {
 	go Listen(GetListenPort())
 
-	fmt.Println("UID:", generateIdentifier())
-
 	for {
-		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
+		current_heartbeat++
+
 		PruneDeadFromList()
+
 		PingAllNodes()
+
+		// 1 heartbeat in 10, we resurrect a random dead node
+		if current_heartbeat%25 == 0 {
+			ResurrectDeadNode()
+		}
+
+		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
+	}
+}
+
+func ResurrectDeadNode() {
+	if len(dnodes) == 1 {
+		registerNewNode(dnodes[0])
+		dnodes = make([]Node, 0, 64)
+	} else if len(dnodes) > 1 {
+		i := rand.Intn(len(dnodes))
+		registerNewNode(dnodes[i])
+
+		dsub := dnodes[:i]
+		dnodes := dnodes[i+1:]
+
+		for _, dn := range dsub {
+			dnodes = append(dnodes, dn)
+		}
 	}
 }
 
@@ -94,7 +127,9 @@ func PruneDeadFromList() {
 	for k, n := range nodes {
 		if n.Age() > uint32(GetDeadMillis()) {
 			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
+
 			delete(nodes, k)
+			dnodes = append(dnodes, *n)
 		}
 	}
 }
@@ -122,6 +157,16 @@ func Listen(port int) {
 
 		// Handle the connection
 		go handleMembershipPing(&conn)
+
+		// fmt.Printf("Received connection from: network=%v string=%v\n",
+		// 	conn.LocalAddr().Network(),
+		// 	conn.LocalAddr().String())
+
+		// host, port, err := net.SplitHostPort(conn.LocalAddr().String())
+		// fmt.Println(host, port, err)
+
+		// a, _ := net.LookupAddr(host)
+		// fmt.Println("A", a, port)
 	}
 }
 
@@ -141,7 +186,7 @@ func PingNNodes(count int) {
 	rnodes := getRandomNodesSlice(count)
 
 	// Loop over nodes and ping them
-	for _, node := range rnodes {
+	for _, node := range *rnodes {
 		go PingNode(&node)
 	}
 }
@@ -166,51 +211,26 @@ func doPingNode(node *Node) error {
 	}
 
 	encoder := gob.NewEncoder(conn)
+	decoder := gob.NewDecoder(conn)
 
 	err = encoder.Encode("PING")
 	if err != nil {
 		return err
 	}
 
-	err = encoder.Encode(uid)
-	if err != nil {
-		return err
-	}
+	transmitNodes(encoder, getRandomNodesSlice(0))
 
-	// Construct the list of nodes we're going to send with the ping
-	//
-	msgNodes := getRandomNodesSlice(0)
-
-	// Send the length
-	//
-	err = encoder.Encode(len(msgNodes))
-	if err != nil {
-		return err
-	}
-
-	for _, n := range msgNodes {
-		err = encoder.Encode(n.Host)
-		if err != nil {
-			return err
-		}
-
-		err = encoder.Encode(n.Port)
-		if err != nil {
-			return err
-		}
-	}
+	msgNodes, _ := receiveNodes(decoder)
 
 	// Receive the response
 	//
 	var response string
-	err = gob.NewDecoder(conn).Decode(&response)
+	err = decoder.Decode(&response)
 
-	if err != nil {
-		fmt.Println("Error receiving response:", err)
-		return err
-	} else if response == "ACK" {
-		node.Touch()
-	}
+	node.Heartbeats = current_heartbeat
+	node.Touch()
+
+	mergeNodeLists(msgNodes)
 
 	return nil
 }
@@ -220,7 +240,7 @@ func doPingNode(node *Node) error {
  * If size is < len(nodes), that many nodes are randomly chosen and
  * returned.
  */
-func getRandomNodesSlice(size int) []Node {
+func getRandomNodesSlice(size int) *[]Node {
 	// If size is less than the entire set of nodes, shuffle and get a subset.
 	if size <= 0 || size > len(nodes) {
 		size = len(nodes)
@@ -252,13 +272,12 @@ func getRandomNodesSlice(size int) []Node {
 		rnodes = rnodes[0:size]
 	}
 
-	return rnodes
+	return &rnodes
 }
 
 func handleMembershipPing(c *net.Conn) {
-	var msgNodes []Node
+	var msgNodes *[]Node
 	var verb string
-	var identifier string
 	var err error
 
 	// Every ping comes in two parts: the verb and the node list.
@@ -266,6 +285,7 @@ func handleMembershipPing(c *net.Conn) {
 	// and NFPING ("non-forwarding ping") for a full SWIM implementation.
 
 	decoder := gob.NewDecoder(*c)
+	encoder := gob.NewEncoder(*c)
 
 	// First, receive the verb
 	//
@@ -275,79 +295,131 @@ func handleMembershipPing(c *net.Conn) {
 		return
 	}
 
-	// First, receive the identifier
+	msgNodes, err = receiveNodes(decoder)
+
+	transmitNodes(encoder, getRandomNodesSlice(0))
+
+	// Handle the verb
 	//
-	err = decoder.Decode(&identifier)
-	if err != nil {
-		fmt.Println("Error receiving identifier:", err)
-		return
+	switch {
+	case verb == "PING":
+		err = encoder.Encode("ACK")
 	}
+
+	mergeNodeLists(msgNodes)
+
+	(*c).Close()
+}
+
+func mergeNodeLists(msgNodes *[]Node) {
+	for _, msgNode := range *msgNodes {
+		if existingNode, ok := nodes[msgNode.Address()]; ok {
+			if msgNode.Heartbeats > existingNode.Heartbeats {
+				// We have this node in our list. Touch it to update the timestamp.
+				existingNode.Heartbeats = msgNode.Heartbeats
+				existingNode.Touch()
+
+				fmt.Printf("[%s] Node exists; is now: %v\n", msgNode.Address(), existingNode)
+			} else {
+				fmt.Printf("[%s] Node exists but heartbeat is older; ignoring\n", msgNode.Address())
+			}
+		} else {
+			// We do not have this node in our list. Add it.
+			fmt.Println("New node identified:", msgNode)
+			registerNewNode(msgNode)
+		}
+	}
+}
+
+func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
+	var mnodes []Node
 
 	// Second, receive the list
 	//
 	var length int
 	var host string
 	var port uint16
+	var heartbeats uint32
+	var err error
 
 	err = decoder.Decode(&length)
 	if err != nil {
 		fmt.Println("Error receiving list:", err)
-		return
+		return &mnodes, err
 	}
 
 	for i := 0; i < length; i++ {
 		err = decoder.Decode(&host)
 		if err != nil {
 			fmt.Println("Error receiving list (host):", err)
-			return
+			return &mnodes, err
 		}
 
 		err = decoder.Decode(&port)
 		if err != nil {
 			fmt.Println("Error receiving list (port):", err)
-			return
+			return &mnodes, err
 		}
 
-		newNode := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
-		msgNodes = append(msgNodes, newNode)
-	}
+		err = decoder.Decode(&heartbeats)
+		if err != nil {
+			fmt.Println("Error receiving list (heartbeats):", err)
+			return &mnodes, err
+		}
 
-	if identifier == uid {
-		gob.NewEncoder(*c).Encode("SELF")
-	} else {
-		// Handle the verb
+		newNode := Node{
+			Host:       host,
+			Port:       port,
+			Heartbeats: heartbeats,
+			Timestamp:  GetNowInMillis()}
+
+		mnodes = append(mnodes, newNode)
+
+		// Does this node have a higher heartbeat than our current one?
+		// If so, synchronize heartbeats.
 		//
-		switch {
-		case verb == "PING":
-			err = gob.NewEncoder(*c).Encode("ACK")
-		}
-
-		// Finally, merge the list from the ping with our own list.
-		for _, msgNode := range msgNodes {
-			if existingNode, ok := nodes[msgNode.Address()]; ok {
-				if msgNode.Timestamp > existingNode.Timestamp {
-					// We have this node in our list. Touch it to update the timestamp.
-					existingNode.Touch()
-
-					fmt.Println("Node exists; is now:", existingNode)
-				} else {
-					fmt.Println("Node exists but timestamp is older; ignoring")
-				}
-			} else {
-				// We do not have this node in our list. Add it.
-				fmt.Println("New node identified:", msgNode)
-				registerNewNode(msgNode)
-			}
+		if heartbeats > current_heartbeat {
+			current_heartbeat = heartbeats
 		}
 	}
 
-	(*c).Close()
+	return &mnodes, err
+}
+
+func transmitNodes(encoder *gob.Encoder, mnodes *[]Node) error {
+	var err error
+
+	// Send the length
+	//
+	err = encoder.Encode(len(*mnodes))
+	if err != nil {
+		return err
+	}
+
+	for _, n := range *mnodes {
+		err = encoder.Encode(n.Host)
+		if err != nil {
+			return err
+		}
+
+		err = encoder.Encode(n.Port)
+		if err != nil {
+			return err
+		}
+
+		err = encoder.Encode(n.Heartbeats)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func init() {
 	if nodes == nil {
 		nodes = make(map[string]*Node)
-		uid = generateIdentifier()
+		dnodes = make([]Node, 0, 64)
 	}
 }
 
@@ -378,6 +450,9 @@ func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
 
 func registerNewNode(node Node) {
 	fmt.Println("Adding host:", node.Address())
+
+	node.Touch()
+	node.Heartbeats = current_heartbeat
 
 	nodes[node.Address()] = &node
 

@@ -20,25 +20,25 @@ func main() {
 		int(fleacircus.GetListenPort()),
 		"The bind port")
 
-	flag.IntVar(&heartbeat_millis, "heartbeat",
+	flag.IntVar(&heartbeat_millis, "hbf",
 		int(fleacircus.GetHeartbeatMillis()),
 		"The heartbeat frequency in milliseconds")
 
-	flag.IntVar(&max_nodes_to_ping, "max-ping",
+	flag.IntVar(&max_nodes_to_ping, "mping",
 		int(fleacircus.GetMaxNodesToPing()),
 		" The maximum number of nodes to ping per heartbeat. "+
 			"Setting to 0 is \"all known nodes\"")
 
-	flag.IntVar(&max_nodes_to_transmit, "max-transmit",
+	flag.IntVar(&max_nodes_to_transmit, "mtransmit",
 		int(fleacircus.GetMaxNodesToTransmit()),
 		"The maximum number of nodes of data to transmit in a ping. "+
 			"Setting to 0 is \"all known nodes\"")
 
-	flag.IntVar(&millis_to_dead, "millis-dead",
+	flag.IntVar(&millis_to_dead, "mdead",
 		int(fleacircus.GetDeadMillis()),
 		"Millis from last update before a node is marked stale")
 
-	flag.IntVar(&millis_to_stale, "millis-stale",
+	flag.IntVar(&millis_to_stale, "mstale",
 		int(fleacircus.GetStaleMillis()),
 		"Millis from last update before a node is marked dead and removed "+
 			"from the nodes list")

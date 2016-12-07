@@ -3,10 +3,11 @@ package fleacircus
 import "fmt"
 
 type Node struct {
-	Host      string
-	Port      uint16
-	Timestamp uint32
-	address   string
+	Host       string
+	Port       uint16
+	Heartbeats uint32
+	Timestamp  uint32
+	address    string
 }
 
 /**
