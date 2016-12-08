@@ -23,7 +23,7 @@ var nodes map[string]*Node
  * Recently dead nodes. Periodically a random dead node will be allowed to
  * rejoin the living.
  */
-var dnodes []Node
+var dead_nodes []Node
 
 var current_heartbeat uint32
 
@@ -104,18 +104,18 @@ func Begin() {
 }
 
 func ResurrectDeadNode() {
-	if len(dnodes) == 1 {
-		registerNewNode(dnodes[0])
-		dnodes = make([]Node, 0, 64)
-	} else if len(dnodes) > 1 {
-		i := rand.Intn(len(dnodes))
-		registerNewNode(dnodes[i])
+	if len(dead_nodes) == 1 {
+		registerNewNode(dead_nodes[0])
+		dead_nodes = make([]Node, 0, 64)
+	} else if len(dead_nodes) > 1 {
+		i := rand.Intn(len(dead_nodes))
+		registerNewNode(dead_nodes[i])
 
-		dsub := dnodes[:i]
-		dnodes := dnodes[i+1:]
+		dsub := dead_nodes[:i]
+		dead_nodes := dead_nodes[i+1:]
 
 		for _, dn := range dsub {
-			dnodes = append(dnodes, dn)
+			dead_nodes = append(dead_nodes, dn)
 		}
 	}
 }
@@ -129,7 +129,7 @@ func PruneDeadFromList() {
 			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
 
 			delete(nodes, k)
-			dnodes = append(dnodes, *n)
+			dead_nodes = append(dead_nodes, *n)
 		}
 	}
 }
@@ -205,32 +205,48 @@ func PingNode(node *Node) error {
 }
 
 func doPingNode(node *Node) error {
-	conn, err := net.Dial("tcp", node.Address())
+	c, err := net.Dial("tcp", node.Address())
 	if err != nil {
 		return err
 	}
 
-	encoder := gob.NewEncoder(conn)
-	decoder := gob.NewDecoder(conn)
+	encoder := gob.NewEncoder(c)
+	decoder := gob.NewDecoder(c)
 
-	err = encoder.Encode("PING")
+	err = transmitVerbPing(&c, encoder, decoder)
 	if err != nil {
 		return err
 	}
 
-	transmitNodes(encoder, getRandomNodesSlice(0))
+	if len(GetListenAddress()) == 0 {
+		err = transmitVerbWho(&c, encoder, decoder)
+		if err != nil {
+			return err
+		}
 
-	msgNodes, _ := receiveNodes(decoder)
+		selfNode := Node{
+			Host:       listen_address,
+			Port:       uint16(listen_port),
+			Heartbeats: current_heartbeat,
+			Timestamp:  GetNowInMillis()}
 
-	// Receive the response
-	//
-	var response string
-	err = decoder.Decode(&response)
+		registerNewNode(selfNode)
+	}
+
+	err = transmitVerbList(&c, encoder, decoder)
+	if err != nil {
+		return err
+	}
+
+	err = transmitVerbBye(&c, encoder, decoder)
+	if err != nil {
+		return err
+	}
 
 	node.Heartbeats = current_heartbeat
 	node.Touch()
 
-	mergeNodeLists(msgNodes)
+	c.Close()
 
 	return nil
 }
@@ -276,7 +292,7 @@ func getRandomNodesSlice(size int) *[]Node {
 }
 
 func handleMembershipPing(c *net.Conn) {
-	var msgNodes *[]Node
+	// var msgNodes *[]Node
 	var verb string
 	var err error
 
@@ -287,26 +303,30 @@ func handleMembershipPing(c *net.Conn) {
 	decoder := gob.NewDecoder(*c)
 	encoder := gob.NewEncoder(*c)
 
-	// First, receive the verb
-	//
-	err = decoder.Decode(&verb)
-	if err != nil {
-		fmt.Println("Error receiving verb:", err)
-		return
+Loop:
+	for {
+		// First, receive the verb
+		//
+		decoder.Decode(&verb)
+
+		// Handle the verb
+		//
+		switch {
+		case verb == "PING":
+			err = receiveVerbPing(c, encoder, decoder)
+		case verb == "WHO":
+			err = receiveVerbWho(c, encoder, decoder)
+		case verb == "LIST":
+			err = receiveVerbList(c, encoder, decoder)
+		case verb == "BYE":
+			break Loop
+		}
+
+		if err != nil {
+			fmt.Println("Error receiving verb:", err)
+			break Loop
+		}
 	}
-
-	msgNodes, err = receiveNodes(decoder)
-
-	transmitNodes(encoder, getRandomNodesSlice(0))
-
-	// Handle the verb
-	//
-	switch {
-	case verb == "PING":
-		err = encoder.Encode("ACK")
-	}
-
-	mergeNodeLists(msgNodes)
 
 	(*c).Close()
 }
@@ -386,6 +406,52 @@ func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
 	return &mnodes, err
 }
 
+func receiveVerbPing(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	return encoder.Encode("ACK")
+}
+
+func receiveVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	var msgNodes *[]Node
+	var err error
+
+	// Receive the entire node list from the peer, but don't merge it yet!
+	//
+	msgNodes, err = receiveNodes(decoder)
+	if err != nil {
+		return err
+	}
+
+	// Reply with our own nodes list
+	err = transmitNodes(encoder, getRandomNodesSlice(GetMaxNodesToTransmit()))
+	if err != nil {
+		return err
+	}
+
+	// Finally, merge the listy of nodes we received from the peer into ours
+	mergeNodeLists(msgNodes)
+
+	return nil
+}
+
+func receiveVerbWho(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	host, _, err := net.SplitHostPort((*c).LocalAddr().String())
+	if err != nil {
+		return err
+	}
+
+	addr, err := net.LookupAddr(host)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(addr[0])
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func transmitNodes(encoder *gob.Encoder, mnodes *[]Node) error {
 	var err error
 
@@ -416,10 +482,93 @@ func transmitNodes(encoder *gob.Encoder, mnodes *[]Node) error {
 	return nil
 }
 
+func transmitVerbBye(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	var err error
+
+	// Send the verb
+	//
+	err = encoder.Encode("BYE")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func transmitVerbPing(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	var err error
+	var ack string
+
+	// Send the verb
+	//
+	err = encoder.Encode("PING")
+	if err != nil {
+		return err
+	}
+
+	// Receive the response
+	//
+	err = decoder.Decode(&ack)
+	if err != nil {
+		return err
+	}
+
+	if ack != "ACK" {
+		return errors.New("unexpected response on PING: " + ack)
+	}
+
+	return nil
+}
+
+func transmitVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	var err error
+
+	// Send the verb
+	//
+	err = encoder.Encode("LIST")
+	if err != nil {
+		return err
+	}
+
+	transmitNodes(encoder, getRandomNodesSlice(0))
+
+	msgNodes, err := receiveNodes(decoder)
+	if err != nil {
+		return err
+	}
+
+	mergeNodeLists(msgNodes)
+
+	return nil
+}
+
+func transmitVerbWho(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
+	var err error
+	var addr string
+
+	// Send the verb
+	//
+	err = encoder.Encode("WHO")
+	if err != nil {
+		return err
+	}
+
+	// Receive the response
+	//
+	err = decoder.Decode(&addr)
+	if err != nil {
+		return err
+	}
+
+	SetListenAddress(addr)
+
+	return nil
+}
+
 func init() {
 	if nodes == nil {
 		nodes = make(map[string]*Node)
-		dnodes = make([]Node, 0, 64)
+		dead_nodes = make([]Node, 0, 64)
 	}
 }
 

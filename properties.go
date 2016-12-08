@@ -45,6 +45,8 @@ const (
 
 var heartbeat_millis int
 
+var listen_address string
+
 var listen_port int
 
 var max_nodes_to_ping int
@@ -75,6 +77,23 @@ func SetListenPort(p int) {
 	} else {
 		listen_port = p
 	}
+}
+
+/**
+ * The address of the host where the process lives.
+ * If not set, the node will attempt to ask other nodes what its address is.
+ */
+func GetListenAddress() string {
+	return listen_address
+}
+
+/**
+ * The address of the host where the process lives.
+ * If not set, the node will attempt to ask other nodes what its address is.
+ */
+func SetListenAddress(s string) {
+	fmt.Println("Listen address:", s)
+	listen_address = s
 }
 
 /**
