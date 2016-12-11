@@ -93,7 +93,7 @@ func Begin() {
 			ResurrectDeadNode()
 		}
 
-		time.Sleep(time.Millisecond / time.Duration(GetHeartbeatMillis()))
+		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
 	}
 }
 
@@ -128,12 +128,11 @@ func PruneDeadFromList() {
 
 // Starts the server on the indicated node. This is a blocking operation,
 // so you probably want to execute this as a gofunc.
-func Listen(port int) {
+func Listen(port int) error {
 	// TODO DON'T USE TCP. Switch to UDP, or better still, raw sockets.
 	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		return err
 	}
 	defer ln.Close()
 
@@ -149,6 +148,8 @@ func Listen(port int) {
 		// Handle the connection
 		go handleMembershipPing(&conn)
 	}
+
+	return nil
 }
 
 func PingAllNodes() {
