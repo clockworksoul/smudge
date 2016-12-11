@@ -14,15 +14,11 @@ import (
 	"time"
 )
 
-/**
- * Currenty active nodes.
- */
-var nodes map[string]*Node
+// Currenty active nodes.
+var live_nodes map[string]*Node
 
-/**
- * Recently dead nodes. Periodically a random dead node will be allowed to
- * rejoin the living.
- */
+// Recently dead nodes. Periodically a random dead node will be allowed to
+// rejoin the living.
 var dead_nodes []Node
 
 var current_heartbeat uint32
@@ -68,9 +64,7 @@ func generateIdentifier() string {
 	return base64.StdEncoding.EncodeToString(sha256[:])
 }
 
-/**
- * Explicitly adds a node to this server's internal nodes list.
- */
+// Explicitly adds a node to this server's internal nodes list.
 func AddNode(name string) {
 	host, port, err := parseNodeAddress(name)
 
@@ -99,7 +93,7 @@ func Begin() {
 			ResurrectDeadNode()
 		}
 
-		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
+		time.Sleep(time.Millisecond / time.Duration(GetHeartbeatMillis()))
 	}
 }
 
@@ -120,31 +114,28 @@ func ResurrectDeadNode() {
 	}
 }
 
-/**
- * Loops through the nodes map and removes the dead ones.
- */
+// Loops through the nodes map and removes the dead ones.
 func PruneDeadFromList() {
-	for k, n := range nodes {
+	for k, n := range live_nodes {
 		if n.Age() > uint32(GetDeadMillis()) {
 			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
 
-			delete(nodes, k)
+			delete(live_nodes, k)
 			dead_nodes = append(dead_nodes, *n)
 		}
 	}
 }
 
-/**
- * Starts the server on the indicated node. This is a blocking operation,
- * so you probably want to execute this as a gofunc.
- */
+// Starts the server on the indicated node. This is a blocking operation,
+// so you probably want to execute this as a gofunc.
 func Listen(port int) {
-	// Listens on port
+	// TODO DON'T USE TCP. Switch to UDP, or better still, raw sockets.
 	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
+	defer ln.Close()
 
 	fmt.Println("Listening on port", port)
 
@@ -157,33 +148,21 @@ func Listen(port int) {
 
 		// Handle the connection
 		go handleMembershipPing(&conn)
-
-		// fmt.Printf("Received connection from: network=%v string=%v\n",
-		// 	conn.LocalAddr().Network(),
-		// 	conn.LocalAddr().String())
-
-		// host, port, err := net.SplitHostPort(conn.LocalAddr().String())
-		// fmt.Println(host, port, err)
-
-		// a, _ := net.LookupAddr(host)
-		// fmt.Println("A", a, port)
 	}
 }
 
 func PingAllNodes() {
-	fmt.Println(len(nodes), "nodes")
+	fmt.Println(len(live_nodes), "nodes")
 
-	for _, node := range nodes {
+	for _, node := range live_nodes {
 		go PingNode(node)
 	}
 }
 
-/**
- * Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
- * PingAllNodes().
- */
+// Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
+// PingAllNodes().
 func PingNNodes(count int) {
-	rnodes := getRandomNodesSlice(count)
+	rnodes := GetRandomNodes(count)
 
 	// Loop over nodes and ping them
 	for _, node := range *rnodes {
@@ -191,10 +170,8 @@ func PingNNodes(count int) {
 	}
 }
 
-/**
- * User-friendly method to explicitly ping a node. Calls the low-level
- * doPingNode(), and outputs a mesaage if it fails.
- */
+// User-friendly method to explicitly ping a node. Calls the low-level
+// doPingNode(), and outputs a message if it fails.
 func PingNode(node *Node) error {
 	err := doPingNode(node)
 	if err != nil {
@@ -205,6 +182,7 @@ func PingNode(node *Node) error {
 }
 
 func doPingNode(node *Node) error {
+	// TODO DON'T USE TCP. Switch to UDP, or better still, raw sockets.
 	c, err := net.Dial("tcp", node.Address())
 	if err != nil {
 		return err
@@ -213,10 +191,10 @@ func doPingNode(node *Node) error {
 	encoder := gob.NewEncoder(c)
 	decoder := gob.NewDecoder(c)
 
-	err = transmitVerbPing(&c, encoder, decoder)
-	if err != nil {
-		return err
-	}
+	// err = transmitVerbPing(&c, encoder, decoder)
+	// if err != nil {
+	// 	return err
+	// }
 
 	if len(GetListenAddress()) == 0 {
 		err = transmitVerbWho(&c, encoder, decoder)
@@ -224,21 +202,14 @@ func doPingNode(node *Node) error {
 			return err
 		}
 
-		selfNode := Node{
+		registerNewNode(Node{
 			Host:       listen_address,
 			Port:       uint16(listen_port),
 			Heartbeats: current_heartbeat,
-			Timestamp:  GetNowInMillis()}
-
-		registerNewNode(selfNode)
+			Timestamp:  GetNowInMillis()})
 	}
 
 	err = transmitVerbList(&c, encoder, decoder)
-	if err != nil {
-		return err
-	}
-
-	err = transmitVerbBye(&c, encoder, decoder)
 	if err != nil {
 		return err
 	}
@@ -251,29 +222,47 @@ func doPingNode(node *Node) error {
 	return nil
 }
 
-/**
- * Returns a slice of Node[] of from 0 to len(nodes) nodes.
- * If size is < len(nodes), that many nodes are randomly chosen and
- * returned.
- */
-func getRandomNodesSlice(size int) *[]Node {
+// Returns a slice of Node[] of from 0 to len(nodes) nodes.
+// If size is < len(nodes), that many nodes are randomly chosen and
+// returned.
+func GetRandomNodes(size int) *[]Node {
+	emptySlice := make([]Node, 0, 0)
+
+	return getRandomNodes(size, &emptySlice)
+}
+
+// Returns a slice of Node[] of from 0 to len(nodes) nodes.
+// If size is < len(nodes), that many nodes are randomly chosen and
+// returned.
+func getRandomNodes(size int, exclude *[]Node) *[]Node {
+	excludeMap := make(map[string]*Node)
+	for _, n := range *exclude {
+		excludeMap[n.Address()] = &n
+	}
+
 	// If size is less than the entire set of nodes, shuffle and get a subset.
-	if size <= 0 || size > len(nodes) {
-		size = len(nodes)
+	if size <= 0 || size > len(live_nodes) {
+		size = len(live_nodes)
 	}
 
 	// Copy the complete nodes map into a slice
 	rnodes := make([]Node, 0, size)
 
 	var c int
-	for _, n := range nodes {
-		// If a node is not stale, we include it.
+	for _, n := range live_nodes {
+		// If a node is not stale...
+		//
 		if n.Age() < uint32(GetStaleMillis()) {
+			// And isn't in the excludes map...
+			//
+			// if _, ok := nodes[n.Address()]; !ok {
+			// We append it
 			rnodes = append(rnodes, *n)
 			c++
 
 			if c >= size {
 				break
+				// }
 			}
 		}
 	}
@@ -307,48 +296,70 @@ Loop:
 	for {
 		// First, receive the verb
 		//
-		decoder.Decode(&verb)
-
-		// Handle the verb
-		//
-		switch {
-		case verb == "PING":
-			err = receiveVerbPing(c, encoder, decoder)
-		case verb == "WHO":
-			err = receiveVerbWho(c, encoder, decoder)
-		case verb == "LIST":
-			err = receiveVerbList(c, encoder, decoder)
-		case verb == "BYE":
+		derr := decoder.Decode(&verb)
+		if derr != nil {
 			break Loop
-		}
+		} else {
+			// Handle the verb
+			//
+			switch {
+			case verb == "PING":
+				err = receiveVerbPing(c, encoder, decoder)
+			case verb == "WHO":
+				err = receiveVerbWho(c, encoder, decoder)
+			case verb == "LIST":
+				err = receiveVerbList(c, encoder, decoder)
+			}
 
-		if err != nil {
-			fmt.Println("Error receiving verb:", err)
-			break Loop
+			if err != nil {
+				fmt.Println("Error receiving verb:", err)
+				break Loop
+			}
 		}
 	}
 
 	(*c).Close()
 }
 
-func mergeNodeLists(msgNodes *[]Node) {
+// Merges a slice of nodes into the nodes map.
+// Returns a slice of the nodes that were merged or updated (or ignored for
+// having exactly equal heartbeats)
+func mergeNodeLists(msgNodes *[]Node) *[]Node {
+	mergedNodes := make([]Node, 0, 1)
+
 	for _, msgNode := range *msgNodes {
-		if existingNode, ok := nodes[msgNode.Address()]; ok {
+		if existingNode, ok := live_nodes[msgNode.Address()]; ok {
+			// If the heartbeats are exactly equal, we don't merge the node,
+			// but since we also don't want to retarnsmit it back to its source
+			// we add to the slice of 'merged' nodes.
+			if msgNode.Heartbeats >= existingNode.Heartbeats {
+				mergedNodes = append(mergedNodes, *existingNode)
+			}
+
 			if msgNode.Heartbeats > existingNode.Heartbeats {
 				// We have this node in our list. Touch it to update the timestamp.
+				//
 				existingNode.Heartbeats = msgNode.Heartbeats
 				existingNode.Touch()
 
-				fmt.Printf("[%s] Node exists; is now: %v\n", msgNode.Address(), existingNode)
+				fmt.Printf("[%s] Node exists; is now: %v\n",
+					msgNode.Address(), existingNode)
 			} else {
-				fmt.Printf("[%s] Node exists but heartbeat is older; ignoring\n", msgNode.Address())
+				fmt.Printf("[%s] Node exists but heartbeat is older; ignoring\n",
+					msgNode.Address())
 			}
 		} else {
 			// We do not have this node in our list. Add it.
 			fmt.Println("New node identified:", msgNode)
 			registerNewNode(msgNode)
+
+			if msgNode.Heartbeats >= existingNode.Heartbeats {
+				mergedNodes = append(mergedNodes, *existingNode)
+			}
 		}
 	}
+
+	return &mergedNodes
 }
 
 func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
@@ -421,14 +432,16 @@ func receiveVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) er
 		return err
 	}
 
+	// Finally, merge the listy of nodes we received from the peer into ours
+	//
+	mergedNodes := mergeNodeLists(msgNodes)
+
 	// Reply with our own nodes list
-	err = transmitNodes(encoder, getRandomNodesSlice(GetMaxNodesToTransmit()))
+	//
+	err = transmitNodes(encoder, getRandomNodes(GetMaxNodesToTransmit(), mergedNodes))
 	if err != nil {
 		return err
 	}
-
-	// Finally, merge the listy of nodes we received from the peer into ours
-	mergeNodeLists(msgNodes)
 
 	return nil
 }
@@ -482,19 +495,6 @@ func transmitNodes(encoder *gob.Encoder, mnodes *[]Node) error {
 	return nil
 }
 
-func transmitVerbBye(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
-	var err error
-
-	// Send the verb
-	//
-	err = encoder.Encode("BYE")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func transmitVerbPing(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
 	var err error
 	var ack string
@@ -530,7 +530,7 @@ func transmitVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) e
 		return err
 	}
 
-	transmitNodes(encoder, getRandomNodesSlice(0))
+	transmitNodes(encoder, GetRandomNodes(GetMaxNodesToTransmit()))
 
 	msgNodes, err := receiveNodes(decoder)
 	if err != nil {
@@ -566,8 +566,8 @@ func transmitVerbWho(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) er
 }
 
 func init() {
-	if nodes == nil {
-		nodes = make(map[string]*Node)
+	if live_nodes == nil {
+		live_nodes = make(map[string]*Node)
 		dead_nodes = make([]Node, 0, 64)
 	}
 }
@@ -603,9 +603,9 @@ func registerNewNode(node Node) {
 	node.Touch()
 	node.Heartbeats = current_heartbeat
 
-	nodes[node.Address()] = &node
+	live_nodes[node.Address()] = &node
 
-	for k, v := range nodes {
+	for k, v := range live_nodes {
 		fmt.Printf(" k=%s v=%v\n", k, v)
 	}
 }
