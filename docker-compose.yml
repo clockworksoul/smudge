@@ -1,0 +1,17 @@
+version: '2'
+
+services:
+  fish1:
+    image: clockworksoul/blackfish:latest
+    command: "/blackfish -node fish2"
+    networks:
+      - pond
+
+  fish2:
+    image: clockworksoul/blackfish:latest
+    command: "/blackfish -node fish1"
+    networks:
+      - pond
+
+networks:
+  pond:
