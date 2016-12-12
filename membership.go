@@ -23,6 +23,26 @@ var dead_nodes []Node
 
 var current_heartbeat uint32
 
+func GetLocalIP() (net.IP, error) {
+	var ip net.IP
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ip, err
+	}
+
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ip = ipnet.IP
+				break
+			}
+		}
+	}
+
+	return ip, nil
+}
+
 func GetNowInMillis() uint32 {
 	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
 }
@@ -354,7 +374,7 @@ func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
 	// Second, receive the list
 	//
 	var length int
-	var host string
+	var host net.IP
 	var port uint16
 	var heartbeats uint32
 	var err error
@@ -384,14 +404,8 @@ func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
 			return &mnodes, err
 		}
 
-		ip, _, err := parseNodeAddress(host) 
-		if err != nil {
-			fmt.Printf("Error parsing host address (%s): %v\n", host, err)
-			return &mnodes, err
-		}
-
 		newNode := Node{
-			Host:       ip,
+			Host:       host,
 			Port:       port,
 			Heartbeats: heartbeats,
 			Timestamp:  GetNowInMillis()}
@@ -554,6 +568,10 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 		if i.To4() != nil {
 			ip = i
 		}
+	}
+
+	if ip.IsLoopback() {
+		ip, err = GetLocalIP()
 	}
 
 	return ip, port, err
