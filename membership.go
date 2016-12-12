@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -34,7 +33,7 @@ func GetLocalIP() (net.IP, error) {
 	for _, a := range addrs {
 		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
-				ip = ipnet.IP
+				ip = ipnet.IP.To4()
 				break
 			}
 		}
@@ -57,17 +56,17 @@ func generateIdentifier() string {
 		bytes = append(bytes, b)
 	}
 
-	// Append the hostname of the current machine
+	// Append the local IP of the current machine
 	//
-	hostname, err := os.Hostname()
+	ipbytes := []byte{ 127, 0, 0, 1 }
+	localip, err := GetLocalIP()
 	if err != nil {
-		fmt.Println("WARNING: Could not resolve hostname. Using 'localhost'")
-		hostname = "localhost"
+		fmt.Println("WARNING: Could not resolve hostname. Using '127.0.0.1'")
+	} else {
+		ipbytes = []byte(localip)
 	}
 
-	hostname_bytes := make([]byte, len(hostname), len(hostname))
-	copy(hostname_bytes[:], hostname)
-	for _, b := range hostname_bytes {
+	for _, b := range ipbytes {
 		bytes = append(bytes, b)
 	}
 
@@ -99,6 +98,8 @@ func AddNode(name string) {
 }
 
 func Begin() {
+	generateIdentifier()
+
 	// Add this host.
 	ip, err := GetLocalIP()
 	if err != nil {
@@ -578,7 +579,7 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 
 	for _, i := range ips {
 		if i.To4() != nil {
-			ip = i
+			ip = i.To4()
 		}
 	}
 
