@@ -1,6 +1,6 @@
 FROM scratch
 
-COPY bin/blackfish /blackfish
+COPY tmp/blackfish /blackfish
 
 EXPOSE 9999
 
