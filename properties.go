@@ -1,4 +1,4 @@
-package fleacircus
+package blackfish
 
 import (
 	"fmt"

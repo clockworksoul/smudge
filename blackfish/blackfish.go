@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"fleacircus"
+	"blackfish"
 )
 
 func main() {
@@ -17,44 +17,44 @@ func main() {
 	flag.StringVar(&node, "node", "", "Initial node")
 
 	flag.IntVar(&listen_port, "port",
-		int(fleacircus.GetListenPort()),
+		int(blackfish.GetListenPort()),
 		"The bind port")
 
 	flag.IntVar(&heartbeat_millis, "hbf",
-		int(fleacircus.GetHeartbeatMillis()),
+		int(blackfish.GetHeartbeatMillis()),
 		"The heartbeat frequency in milliseconds")
 
 	flag.IntVar(&max_nodes_to_ping, "mping",
-		int(fleacircus.GetMaxNodesToPing()),
+		int(blackfish.GetMaxNodesToPing()),
 		" The maximum number of nodes to ping per heartbeat. "+
 			"Setting to 0 is \"all known nodes\"")
 
 	flag.IntVar(&max_nodes_to_transmit, "mtransmit",
-		int(fleacircus.GetMaxNodesToTransmit()),
+		int(blackfish.GetMaxNodesToTransmit()),
 		"The maximum number of nodes of data to transmit in a ping. "+
 			"Setting to 0 is \"all known nodes\"")
 
 	flag.IntVar(&millis_to_dead, "mdead",
-		int(fleacircus.GetDeadMillis()),
+		int(blackfish.GetDeadMillis()),
 		"Millis from last update before a node is marked stale")
 
 	flag.IntVar(&millis_to_stale, "mstale",
-		int(fleacircus.GetStaleMillis()),
+		int(blackfish.GetStaleMillis()),
 		"Millis from last update before a node is marked dead and removed "+
 			"from the nodes list")
 
 	flag.Parse()
 
-	fleacircus.SetListenPort(listen_port)
-	fleacircus.SetHeartbeatMillis(heartbeat_millis)
-	fleacircus.SetMaxNodesToPing(max_nodes_to_ping)
-	fleacircus.SetMaxNodesToTransmit(max_nodes_to_transmit)
-	fleacircus.SetDeadMillis(millis_to_dead)
-	fleacircus.SetStaleMillis(millis_to_stale)
+	blackfish.SetListenPort(listen_port)
+	blackfish.SetHeartbeatMillis(heartbeat_millis)
+	blackfish.SetMaxNodesToPing(max_nodes_to_ping)
+	blackfish.SetMaxNodesToTransmit(max_nodes_to_transmit)
+	blackfish.SetDeadMillis(millis_to_dead)
+	blackfish.SetStaleMillis(millis_to_stale)
 
 	if node != "" {
-		fleacircus.AddNode(node)
+		blackfish.AddNode(node)
 	}
 
-	fleacircus.Begin()
+	blackfish.Begin()
 }

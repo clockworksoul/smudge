@@ -1,4 +1,4 @@
-package fleacircus
+package blackfish
 
 import (
 	"crypto/sha256"
