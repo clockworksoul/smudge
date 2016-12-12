@@ -373,9 +373,7 @@ func mergeNodeLists(msgNodes *[]Node) *[]Node {
 			fmt.Println("New node identified:", msgNode)
 			registerNewNode(msgNode)
 
-			if msgNode.Heartbeats >= existingNode.Heartbeats {
-				mergedNodes = append(mergedNodes, *existingNode)
-			}
+			mergedNodes = append(mergedNodes, msgNode)
 		}
 	}
 
@@ -452,7 +450,7 @@ func receiveVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) er
 		return err
 	}
 
-	// Finally, merge the listy of nodes we received from the peer into ours
+	// Finally, merge the list of nodes we received from the peer into ours
 	//
 	mergedNodes := mergeNodeLists(msgNodes)
 
