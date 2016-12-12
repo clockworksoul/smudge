@@ -197,19 +197,6 @@ func doPingNode(node *Node) error {
 	// 	return err
 	// }
 
-	if len(GetListenAddress()) == 0 {
-		err = transmitVerbWho(&c, encoder, decoder)
-		if err != nil {
-			return err
-		}
-
-		registerNewNode(Node{
-			Host:       listen_address,
-			Port:       uint16(listen_port),
-			Heartbeats: current_heartbeat,
-			Timestamp:  GetNowInMillis()})
-	}
-
 	err = transmitVerbList(&c, encoder, decoder)
 	if err != nil {
 		return err
@@ -306,8 +293,6 @@ Loop:
 			switch {
 			case verb == "PING":
 				err = receiveVerbPing(c, encoder, decoder)
-			case verb == "WHO":
-				err = receiveVerbWho(c, encoder, decoder)
 			case verb == "LIST":
 				err = receiveVerbList(c, encoder, decoder)
 			}
@@ -399,8 +384,14 @@ func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
 			return &mnodes, err
 		}
 
+		ip, _, err := parseNodeAddress(host) 
+		if err != nil {
+			fmt.Printf("Error parsing host address (%s): %v\n", host, err)
+			return &mnodes, err
+		}
+
 		newNode := Node{
-			Host:       host,
+			Host:       ip,
 			Port:       port,
 			Heartbeats: heartbeats,
 			Timestamp:  GetNowInMillis()}
@@ -440,25 +431,6 @@ func receiveVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) er
 	// Reply with our own nodes list
 	//
 	err = transmitNodes(encoder, getRandomNodes(GetMaxNodesToTransmit(), mergedNodes))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func receiveVerbWho(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
-	host, _, err := net.SplitHostPort((*c).LocalAddr().String())
-	if err != nil {
-		return err
-	}
-
-	addr, err := net.LookupAddr(host)
-	if err != nil {
-		return err
-	}
-
-	err = encoder.Encode(addr[0])
 	if err != nil {
 		return err
 	}
@@ -543,29 +515,6 @@ func transmitVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) e
 	return nil
 }
 
-func transmitVerbWho(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) error {
-	var err error
-	var addr string
-
-	// Send the verb
-	//
-	err = encoder.Encode("WHO")
-	if err != nil {
-		return err
-	}
-
-	// Receive the response
-	//
-	err = decoder.Decode(&addr)
-	if err != nil {
-		return err
-	}
-
-	SetListenAddress(addr)
-
-	return nil
-}
-
 func init() {
 	if live_nodes == nil {
 		live_nodes = make(map[string]*Node)
@@ -573,8 +522,9 @@ func init() {
 	}
 }
 
-func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
+func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	var host string
+	var ip net.IP
 	var port uint16
 	var err error
 
@@ -595,7 +545,18 @@ func parseNodeAddress(hostAndMaybePort string) (string, uint16, error) {
 		port = uint16(DEFAULT_LISTEN_PORT)
 	}
 
-	return host, port, err
+	ips, err := net.LookupIP(host)
+	if err != nil  {
+		return ip, port, err
+	}
+
+	for _, i := range ips {
+		if i.To4() != nil {
+			ip = i
+		}
+	}
+
+	return ip, port, err
 }
 
 func registerNewNode(node Node) {

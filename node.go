@@ -1,33 +1,32 @@
-package fleacircus
+package blackfish
 
-import "fmt"
+import ( 
+	"fmt"
+	"net"
+	)
 
 type Node struct {
-	Host       string
+	Host       net.IP
 	Port       uint16
 	Heartbeats uint32
 	Timestamp  uint32
 	address    string
 }
 
-/**
- * The time since we last heard from this node, in milliseconds.
- */
+// The time since we last heard from this node, in milliseconds.
 func (n *Node) Age() uint32 {
 	return GetNowInMillis() - n.Timestamp
 }
 
 func (n *Node) Address() string {
 	if n.address == "" {
-		n.address = fmt.Sprintf("%s:%d", n.Host, n.Port)
+		n.address = fmt.Sprintf("%s:%d", n.Host.String(), n.Port)
 	}
 
 	return n.address
 }
 
-/**
- * Updates the timestamp to the local time in nanos
- */
+// Updates the timestamp to the local time in nanos
 func (n *Node) Touch() {
 	n.Timestamp = GetNowInMillis()
 }
