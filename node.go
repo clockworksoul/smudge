@@ -1,9 +1,9 @@
 package blackfish
 
-import ( 
+import (
 	"fmt"
 	"net"
-	)
+)
 
 type Node struct {
 	Host       net.IP

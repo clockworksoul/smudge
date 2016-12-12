@@ -99,6 +99,20 @@ func AddNode(name string) {
 }
 
 func Begin() {
+	// Add this host.
+	ip, err := GetLocalIP()
+	if err != nil {
+		fmt.Println("Warning: Could not resolve host IP")
+	} else {
+		me := Node{
+			Host:       ip,
+			Port:       uint16(GetListenPort()),
+			Heartbeats: current_heartbeat,
+			Timestamp:  GetNowInMillis()}
+
+		registerNewNode(me)
+	}
+
 	go Listen(GetListenPort())
 
 	for {
@@ -560,7 +574,7 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	}
 
 	ips, err := net.LookupIP(host)
-	if err != nil  {
+	if err != nil {
 		return ip, port, err
 	}
 
