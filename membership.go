@@ -15,6 +15,8 @@ var pending_acks map[string]*pendingAck
 
 var this_host_address string
 
+var TIMEOUT_MILLIS uint32 = 2500
+
 func init() {
 	pending_acks = make(map[string]*pendingAck)
 }
@@ -39,6 +41,8 @@ func Begin() {
 	}
 
 	go ListenUDP(GetListenPort())
+
+	go timeoutSentinel()
 
 	for {
 		current_heartbeat++
@@ -181,6 +185,22 @@ func receiveVerbAckUDP(node *Node, code uint32) error {
 	}
 
 	return nil
+}
+
+func timeoutSentinel() {
+	for {
+		for k, ack := range pending_acks {
+			elapsed := ack.Elapsed()
+
+			if (elapsed > TIMEOUT_MILLIS) {
+				fmt.Println(k, "timed out after", TIMEOUT_MILLIS, " milliseconds")
+			
+				delete(pending_acks, k)
+			}
+		}
+
+		time.Sleep(time.Millisecond * 1000)
+	}
 }
 
 func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
@@ -504,6 +524,6 @@ type pendingAck struct {
 	Node      *Node
 }
 
-func (a *pendingAck) elapsed() uint32 {
+func (a *pendingAck) Elapsed() uint32 {
 	return GetNowInMillis() - a.StartTime
 }
