@@ -42,7 +42,7 @@ func Begin() {
 
 	go ListenUDP(GetListenPort())
 
-	go timeoutSentinel()
+	go startTimeoutCheckLoop()
 
 	for {
 		current_heartbeat++
@@ -119,29 +119,15 @@ func PingNode(node *Node) error {
 	return err
 }
 
-func constructUDPMessage(verb string, code uint32) []byte {
-	bytes_out := []byte(verb)
-
-	bytes_out = append(bytes_out, byte(0))
-
-	for i := uint32(0); i < 32; i += 8 {
-		code >>= i
-		bytes_out = append(bytes_out, byte(code))
-	}
-
-	return bytes_out
-}
-
-func receiveMessageUDP(addr *net.UDPAddr, msg []byte) error {
-	verb, code, err := parseUDPMessage(msg)
+func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
+	msg, err := decodeMessage(addr, msg_bytes)
 	if err != nil {
 		return err
 	}
 
-	// GET THE NODE
-	node := GetNodeByIP(addr.IP, 0)
-	if node == nil {
-		fmt.Println("Unrecognized IP:", addr.IP)
+	if msg.sender == nil {
+		// TODO If it's associated with a DEAD node do we revive it?
+		fmt.Println("IP is not associated with a live node:", addr.IP)
 	} else {
 		// Handle the verb. Each verb is three characters, and is one of the
 		// following:
@@ -150,10 +136,14 @@ func receiveMessageUDP(addr *net.UDPAddr, msg []byte) error {
 		//   FWD - Forwarding ping (contains origin address)
 		//   NFP - Non-forwarding ping
 		switch {
-		case verb == "PNG":
-			err = receiveVerbPingUDP(node, code)
-		case verb == "ACK":
-			err = receiveVerbAckUDP(node, code)
+		case msg.verb == "PNG":
+			err = receiveVerbPingUDP(msg)
+		case msg.verb == "ACK":
+			err = receiveVerbAckUDP(msg)
+		case msg.verb == "FWD":
+			err = receiveVerbForwardUDP(msg)
+		case msg.verb == "NFP":
+			err = receiveVerbNonForwardPingUDP(msg)
 		}
 
 		if err != nil {
@@ -164,22 +154,16 @@ func receiveMessageUDP(addr *net.UDPAddr, msg []byte) error {
 	return nil
 }
 
-func receiveVerbPingUDP(node *Node, code uint32) error {
-	fmt.Println("GOT PNG FROM", node.Address(), code)
+func receiveVerbAckUDP(msg message) error {
+	fmt.Println("GOT ACK FROM", msg.sender.Address(), msg.code)
 
-	return transmitVerbAckUDP(node, code)
-}
-
-func receiveVerbAckUDP(node *Node, code uint32) error {
-	fmt.Println("GOT ACK FROM", node.Address(), code)
-
-	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
+	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.code), 10)
 
 	if _, ok := pending_acks[key]; ok {
 		// TODO Keep statistics on response times
 
-		node.Heartbeats = current_heartbeat
-		node.Touch()
+		msg.sender.Heartbeats = current_heartbeat
+		msg.sender.Touch()
 
 		delete(pending_acks, key)
 	} else {
@@ -189,7 +173,25 @@ func receiveVerbAckUDP(node *Node, code uint32) error {
 	return nil
 }
 
-func timeoutSentinel() {
+func receiveVerbForwardUDP(msg message) error {
+	fmt.Println("GOT FWD FROM", msg.sender.Address(), msg.code)
+
+	return errors.New("FWD: Unsupported operation")
+}
+
+func receiveVerbPingUDP(msg message) error {
+	fmt.Println("GOT PNG FROM", msg.sender.Address(), msg.code)
+
+	return transmitVerbAckUDP(msg.sender, msg.code)
+}
+
+func receiveVerbNonForwardPingUDP(msg message) error {
+	fmt.Println("GOT NFP FROM", msg.sender.Address(), msg.code)
+
+	return errors.New("NFP: Unsupported operation")
+}
+
+func startTimeoutCheckLoop() {
 	for {
 		for k, ack := range pending_acks {
 			elapsed := ack.Elapsed()
@@ -218,7 +220,7 @@ func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
 	}
 	defer c.Close()
 
-	_, err = c.Write(constructUDPMessage(verb, code))
+	_, err = c.Write(encodeMessage(message{verb: verb, code: code}))
 	if err != nil {
 		return err
 	}
@@ -236,31 +238,6 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 	pending_acks[key] = &pack
 
 	return transmitVerbGenericUDP(node, "PNG", code)
-}
-
-func parseUDPMessage(msg_bytes []byte) (string, uint32, error) {
-	var verb string
-	var code uint32
-
-	// Scan to find the null byte and use that to find the verb
-	for i, b := range msg_bytes {
-		if b == 0 {
-			verb = string(msg_bytes[:i])
-			break
-		}
-	}
-
-	// Everything after is the code value
-	for j := len(msg_bytes) - 1; j > len(verb); j-- {
-		code <<= 8
-		code |= uint32(msg_bytes[j])
-	}
-
-	if verb == "" {
-		return verb, code, errors.New("Verb not found")
-	}
-
-	return verb, code, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
