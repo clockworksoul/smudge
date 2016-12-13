@@ -1,105 +1,25 @@
 package blackfish
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 )
 
-// Currenty active nodes.
-var live_nodes map[string]*Node
-
-// Recently dead nodes. Periodically a random dead node will be allowed to
-// rejoin the living.
-var dead_nodes []Node
-
 var current_heartbeat uint32
 
-func GetLocalIP() (net.IP, error) {
-	var ip net.IP
+var pending_acks map[string]*pendingAck
 
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ip, err
-	}
+var this_host_address string
 
-	for _, a := range addrs {
-		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				ip = ipnet.IP.To4()
-				break
-			}
-		}
-	}
-
-	return ip, nil
-}
-
-func GetNowInMillis() uint32 {
-	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
-}
-
-func generateIdentifier() string {
-	bytes := make([]byte, 0, 1000)
-
-	// Begin with the byte value of the current nano time
-	//
-	now_bytes, _ := time.Now().MarshalBinary()
-	for _, b := range now_bytes {
-		bytes = append(bytes, b)
-	}
-
-	// Append the local IP of the current machine
-	//
-	ipbytes := []byte{ 127, 0, 0, 1 }
-	localip, err := GetLocalIP()
-	if err != nil {
-		fmt.Println("WARNING: Could not resolve hostname. Using '127.0.0.1'")
-	} else {
-		ipbytes = []byte(localip)
-	}
-
-	for _, b := range ipbytes {
-		bytes = append(bytes, b)
-	}
-
-	// Append some random data
-	//
-	rand := rand.Int63()
-	var i uint
-	for i = 0; i < 8; i++ {
-		bytes = append(bytes, byte(rand>>i))
-	}
-
-	sha256 := sha256.Sum256(bytes)
-
-	return base64.StdEncoding.EncodeToString(sha256[:])
-}
-
-// Explicitly adds a node to this server's internal nodes list.
-func AddNode(name string) {
-	host, port, err := parseNodeAddress(name)
-
-	if err != nil {
-		fmt.Println("Failure to parse node name:", err)
-		return
-	}
-
-	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
-
-	registerNewNode(node)
+func init() {
+	pending_acks = make(map[string]*pendingAck)
 }
 
 func Begin() {
-	generateIdentifier()
-
 	// Add this host.
 	ip, err := GetLocalIP()
 	if err != nil {
@@ -112,9 +32,13 @@ func Begin() {
 			Timestamp:  GetNowInMillis()}
 
 		registerNewNode(me)
+
+		this_host_address = me.Address()
+
+		fmt.Println("My host address:", this_host_address)
 	}
 
-	go Listen(GetListenPort())
+	go ListenUDP(GetListenPort())
 
 	for {
 		current_heartbeat++
@@ -132,59 +56,33 @@ func Begin() {
 	}
 }
 
-func ResurrectDeadNode() {
-	if len(dead_nodes) == 1 {
-		registerNewNode(dead_nodes[0])
-		dead_nodes = make([]Node, 0, 64)
-	} else if len(dead_nodes) > 1 {
-		i := rand.Intn(len(dead_nodes))
-		registerNewNode(dead_nodes[i])
-
-		dsub := dead_nodes[:i]
-		dead_nodes := dead_nodes[i+1:]
-
-		for _, dn := range dsub {
-			dead_nodes = append(dead_nodes, dn)
-		}
-	}
-}
-
-// Loops through the nodes map and removes the dead ones.
-func PruneDeadFromList() {
-	for k, n := range live_nodes {
-		if n.Age() > uint32(GetDeadMillis()) {
-			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
-
-			delete(live_nodes, k)
-			dead_nodes = append(dead_nodes, *n)
-		}
-	}
-}
-
-// Starts the server on the indicated node. This is a blocking operation,
-// so you probably want to execute this as a gofunc.
-func Listen(port int) error {
-	// TODO DON'T USE TCP. Switch to UDP, or better still, raw sockets.
-	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
+func ListenUDP(port int) error {
+	listenAddress, err := net.ResolveUDPAddr("udp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
 		return err
 	}
-	defer ln.Close()
 
-	fmt.Println("Listening on port", port)
+	/* Now listen at selected port */
+	c, err := net.ListenUDP("udp", listenAddress)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
 
 	for {
-		conn, err := ln.Accept()
+		buf := make([]byte, 16)
+		n, addr, err := c.ReadFromUDP(buf)
 		if err != nil {
-			fmt.Println("Error:", err)
-			continue
+			fmt.Println("UDP read error: ", err)
 		}
 
-		// Handle the connection
-		go handleMembershipPing(&conn)
+		go func(addr *net.UDPAddr, msg []byte) {
+	        err = receiveMessageUDP(addr, buf[0:n])
+			if err != nil {
+				fmt.Println(err)
+			}
+	    }(addr, buf[0:n])
 	}
-
-	return nil
 }
 
 func PingAllNodes() {
@@ -209,7 +107,7 @@ func PingNNodes(count int) {
 // User-friendly method to explicitly ping a node. Calls the low-level
 // doPingNode(), and outputs a message if it fails.
 func PingNode(node *Node) error {
-	err := doPingNode(node)
+	err := transmitVerbPingUDP(node, current_heartbeat)
 	if err != nil {
 		fmt.Println("Failure to ping", node, "->", err)
 	}
@@ -217,7 +115,137 @@ func PingNode(node *Node) error {
 	return err
 }
 
-func doPingNode(node *Node) error {
+func constructUDPMessage(verb string, code uint32) []byte {
+	bytes_out := []byte(verb)
+
+	bytes_out = append(bytes_out, byte(0))
+
+	for i := uint32(0); i < 32; i += 8 {
+		code >>= i
+		bytes_out = append(bytes_out, byte(code))
+	}
+
+	return bytes_out
+}
+
+func receiveMessageUDP(addr *net.UDPAddr, msg []byte) error {
+	verb, code, err := parseUDPMessage(msg)
+	if err != nil {
+		return err
+	}
+
+	// GET THE NODE
+	node := lookupNodeByAddress(addr.IP, 0)
+	if node == nil {
+		fmt.Println("Unrecognized IP:", addr.IP)
+	} else {
+		// Handle the verb
+		//
+		switch {
+		case verb == "PING":
+			err = receiveVerbPingUDP(node, code)
+		case verb == "ACK":
+			err = receiveVerbAckUDP(node, code)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func receiveVerbPingUDP(node *Node, code uint32) error {
+	fmt.Println("GOT PING FROM", node.Address(), code)
+
+	return transmitVerbAckUDP(node, code)
+}
+
+func receiveVerbAckUDP(node *Node, code uint32) error {
+	fmt.Println("GOT ACK FROM", node.Address(), code)
+
+	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
+
+	if _, ok := pending_acks[key]; ok {
+		// now := GetNowInMillis()
+		// start := ack.StartTime
+		// elapsed := now - start
+
+		node.Heartbeats = current_heartbeat
+		node.Touch()
+
+		delete(pending_acks, key)
+	} else {
+		fmt.Println("**NO", key)
+	}
+
+	return nil
+}
+
+func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
+	// Transmit the ACK
+	remote_addr, err := net.ResolveUDPAddr("udp", node.Address())
+	if err != nil {
+		return err
+	}
+
+	c, err := net.DialUDP("udp", nil, remote_addr)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	_, err = c.Write(constructUDPMessage(verb, code))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func transmitVerbAckUDP(node *Node, code uint32) error {
+	return transmitVerbGenericUDP(node, "ACK", code)
+}
+
+func transmitVerbPingUDP(node *Node, code uint32) error {
+	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
+	pack := pendingAck{Node: node, StartTime: GetNowInMillis()}
+	pending_acks[key] = &pack
+
+	return transmitVerbGenericUDP(node, "PING", code)
+}
+
+func parseUDPMessage(msg_bytes []byte) (string, uint32, error) {
+	var verb string
+	var code uint32
+
+	// Scan to find the null byte and use that to find the verb
+	for i, b := range msg_bytes {
+		if b == 0 {
+			verb = string(msg_bytes[:i])
+			break
+		}
+	}
+
+	// Everything after is the code value
+	for j := len(msg_bytes) - 1; j > len(verb); j-- {
+		code <<= 8
+		code |= uint32(msg_bytes[j])
+	}
+
+	if verb == "" {
+		return verb, code, errors.New("Verb not found")
+	}
+
+	return verb, code, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// ATTIC IS BELOW
+///////////////////////////////////////////////////////////////////////////////
+
+func doPingNodeTCP(node *Node) error {
 	// TODO DON'T USE TCP. Switch to UDP, or better still, raw sockets.
 	c, err := net.Dial("tcp", node.Address())
 	if err != nil {
@@ -243,64 +271,6 @@ func doPingNode(node *Node) error {
 	c.Close()
 
 	return nil
-}
-
-// Returns a slice of Node[] of from 0 to len(nodes) nodes.
-// If size is < len(nodes), that many nodes are randomly chosen and
-// returned.
-func GetRandomNodes(size int) *[]Node {
-	emptySlice := make([]Node, 0, 0)
-
-	return getRandomNodes(size, &emptySlice)
-}
-
-// Returns a slice of Node[] of from 0 to len(nodes) nodes.
-// If size is < len(nodes), that many nodes are randomly chosen and
-// returned.
-func getRandomNodes(size int, exclude *[]Node) *[]Node {
-	excludeMap := make(map[string]*Node)
-	for _, n := range *exclude {
-		excludeMap[n.Address()] = &n
-	}
-
-	// If size is less than the entire set of nodes, shuffle and get a subset.
-	if size <= 0 || size > len(live_nodes) {
-		size = len(live_nodes)
-	}
-
-	// Copy the complete nodes map into a slice
-	rnodes := make([]Node, 0, size)
-
-	var c int
-	for _, n := range live_nodes {
-		// If a node is not stale...
-		//
-		if n.Age() < uint32(GetStaleMillis()) {
-			// And isn't in the excludes map...
-			//
-			// if _, ok := nodes[n.Address()]; !ok {
-			// We append it
-			rnodes = append(rnodes, *n)
-			c++
-
-			if c >= size {
-				break
-				// }
-			}
-		}
-	}
-
-	if size < len(rnodes) {
-		// Shuffle the slice
-		for i := range rnodes {
-			j := rand.Intn(i + 1)
-			rnodes[i], rnodes[j] = rnodes[j], rnodes[i]
-		}
-
-		rnodes = rnodes[0:size]
-	}
-
-	return &rnodes
 }
 
 func handleMembershipPing(c *net.Conn) {
@@ -340,45 +310,6 @@ Loop:
 	}
 
 	(*c).Close()
-}
-
-// Merges a slice of nodes into the nodes map.
-// Returns a slice of the nodes that were merged or updated (or ignored for
-// having exactly equal heartbeats)
-func mergeNodeLists(msgNodes *[]Node) *[]Node {
-	mergedNodes := make([]Node, 0, 1)
-
-	for _, msgNode := range *msgNodes {
-		if existingNode, ok := live_nodes[msgNode.Address()]; ok {
-			// If the heartbeats are exactly equal, we don't merge the node,
-			// but since we also don't want to retarnsmit it back to its source
-			// we add to the slice of 'merged' nodes.
-			if msgNode.Heartbeats >= existingNode.Heartbeats {
-				mergedNodes = append(mergedNodes, *existingNode)
-			}
-
-			if msgNode.Heartbeats > existingNode.Heartbeats {
-				// We have this node in our list. Touch it to update the timestamp.
-				//
-				existingNode.Heartbeats = msgNode.Heartbeats
-				existingNode.Touch()
-
-				fmt.Printf("[%s] Node exists; is now: %v\n",
-					msgNode.Address(), existingNode)
-			} else {
-				fmt.Printf("[%s] Node exists but heartbeat is older; ignoring\n",
-					msgNode.Address())
-			}
-		} else {
-			// We do not have this node in our list. Add it.
-			fmt.Println("New node identified:", msgNode)
-			registerNewNode(msgNode)
-
-			mergedNodes = append(mergedNodes, msgNode)
-		}
-	}
-
-	return &mergedNodes
 }
 
 func receiveNodes(decoder *gob.Decoder) (*[]Node, error) {
@@ -542,63 +473,37 @@ func transmitVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) e
 	return nil
 }
 
-func init() {
-	if live_nodes == nil {
-		live_nodes = make(map[string]*Node)
-		dead_nodes = make([]Node, 0, 64)
-	}
-}
-
-func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
-	var host string
-	var ip net.IP
-	var port uint16
-	var err error
-
-	if strings.Contains(hostAndMaybePort, ":") {
-		splode := strings.Split(hostAndMaybePort, ":")
-
-		if len(splode) == 2 {
-			p, e := strconv.ParseUint(splode[1], 10, 16)
-
-			host = splode[0]
-			port = uint16(p)
-			err = e
-		} else {
-			err = errors.New("too many colons in argument " + hostAndMaybePort)
-		}
-	} else {
-		host = hostAndMaybePort
-		port = uint16(DEFAULT_LISTEN_PORT)
-	}
-
-	ips, err := net.LookupIP(host)
+// Starts the server on the indicated node. This is a blocking operation,
+// so you probably want to execute this as a gofunc.
+func ListenTCP(port int) error {
+	// TODO DON'T USE TCP. Switch to UDP, or better still, raw sockets.
+	ln, err := net.Listen("tcp", ":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
-		return ip, port, err
+		return err
 	}
+	defer ln.Close()
 
-	for _, i := range ips {
-		if i.To4() != nil {
-			ip = i.To4()
+	fmt.Println("Listening on port", port)
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println("Error:", err)
+			continue
 		}
+
+		// Handle the connection
+		go handleMembershipPing(&conn)
 	}
 
-	if ip.IsLoopback() {
-		ip, err = GetLocalIP()
-	}
-
-	return ip, port, err
+	return nil
 }
 
-func registerNewNode(node Node) {
-	fmt.Println("Adding host:", node.Address())
+type pendingAck struct {
+	StartTime uint32
+	Node      *Node
+}
 
-	node.Touch()
-	node.Heartbeats = current_heartbeat
-
-	live_nodes[node.Address()] = &node
-
-	for k, v := range live_nodes {
-		fmt.Printf(" k=%s v=%v\n", k, v)
-	}
+func (a *pendingAck) elapsed() uint32 {
+	return GetNowInMillis() - a.StartTime
 }

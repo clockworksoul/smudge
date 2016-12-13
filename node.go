@@ -3,6 +3,7 @@ package blackfish
 import (
 	"fmt"
 	"net"
+	"time"
 )
 
 type Node struct {
@@ -29,4 +30,8 @@ func (n *Node) Address() string {
 // Updates the timestamp to the local time in nanos
 func (n *Node) Touch() {
 	n.Timestamp = GetNowInMillis()
+}
+
+func GetNowInMillis() uint32 {
+	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
 }
