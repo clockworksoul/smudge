@@ -33,7 +33,7 @@ func Begin() {
 			Heartbeats: current_heartbeat,
 			Timestamp:  GetNowInMillis()}
 
-		registerNewNode(me)
+		AddNode(me)
 
 		this_host_address = me.Address()
 
@@ -81,11 +81,11 @@ func ListenUDP(port int) error {
 		}
 
 		go func(addr *net.UDPAddr, msg []byte) {
-	        err = receiveMessageUDP(addr, buf[0:n])
+			err = receiveMessageUDP(addr, buf[0:n])
 			if err != nil {
 				fmt.Println(err)
 			}
-	    }(addr, buf[0:n])
+		}(addr, buf[0:n])
 	}
 }
 
@@ -139,14 +139,18 @@ func receiveMessageUDP(addr *net.UDPAddr, msg []byte) error {
 	}
 
 	// GET THE NODE
-	node := lookupNodeByAddress(addr.IP, 0)
+	node := GetNodeByIP(addr.IP, 0)
 	if node == nil {
 		fmt.Println("Unrecognized IP:", addr.IP)
 	} else {
-		// Handle the verb
-		//
+		// Handle the verb. Each verb is three characters, and is one of the
+		// following:
+		//   PNG - Ping
+		//   ACK - Acknowledge
+		//   FWD - Forwarding ping (contains origin address)
+		//   NFP - Non-forwarding ping
 		switch {
-		case verb == "PING":
+		case verb == "PNG":
 			err = receiveVerbPingUDP(node, code)
 		case verb == "ACK":
 			err = receiveVerbAckUDP(node, code)
@@ -161,7 +165,7 @@ func receiveMessageUDP(addr *net.UDPAddr, msg []byte) error {
 }
 
 func receiveVerbPingUDP(node *Node, code uint32) error {
-	fmt.Println("GOT PING FROM", node.Address(), code)
+	fmt.Println("GOT PNG FROM", node.Address(), code)
 
 	return transmitVerbAckUDP(node, code)
 }
@@ -172,9 +176,7 @@ func receiveVerbAckUDP(node *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 
 	if _, ok := pending_acks[key]; ok {
-		// now := GetNowInMillis()
-		// start := ack.StartTime
-		// elapsed := now - start
+		// TODO Keep statistics on response times
 
 		node.Heartbeats = current_heartbeat
 		node.Touch()
@@ -192,9 +194,9 @@ func timeoutSentinel() {
 		for k, ack := range pending_acks {
 			elapsed := ack.Elapsed()
 
-			if (elapsed > TIMEOUT_MILLIS) {
+			if elapsed > TIMEOUT_MILLIS {
 				fmt.Println(k, "timed out after", TIMEOUT_MILLIS, " milliseconds")
-			
+
 				delete(pending_acks, k)
 			}
 		}
@@ -233,7 +235,7 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 	pack := pendingAck{Node: node, StartTime: GetNowInMillis()}
 	pending_acks[key] = &pack
 
-	return transmitVerbGenericUDP(node, "PING", code)
+	return transmitVerbGenericUDP(node, "PNG", code)
 }
 
 func parseUDPMessage(msg_bytes []byte) (string, uint32, error) {
@@ -299,8 +301,8 @@ func handleMembershipPing(c *net.Conn) {
 	var err error
 
 	// Every ping comes in two parts: the verb and the node list.
-	// For now, the only supported verb is PING; later we'll support FORWARD
-	// and NFPING ("non-forwarding ping") for a full SWIM implementation.
+	// For now, the only supported verb is PNG; later we'll support FORWARD
+	// and NFPNG ("non-forwarding ping") for a full SWIM implementation.
 
 	decoder := gob.NewDecoder(*c)
 	encoder := gob.NewEncoder(*c)
@@ -316,7 +318,7 @@ Loop:
 			// Handle the verb
 			//
 			switch {
-			case verb == "PING":
+			case verb == "PNG":
 				err = receiveVerbPing(c, encoder, decoder)
 			case verb == "LIST":
 				err = receiveVerbList(c, encoder, decoder)
@@ -452,7 +454,7 @@ func transmitVerbPing(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) e
 
 	// Send the verb
 	//
-	err = encoder.Encode("PING")
+	err = encoder.Encode("PNG")
 	if err != nil {
 		return err
 	}
@@ -465,7 +467,7 @@ func transmitVerbPing(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) e
 	}
 
 	if ack != "ACK" {
-		return errors.New("unexpected response on PING: " + ack)
+		return errors.New("unexpected response on PNG: " + ack)
 	}
 
 	return nil

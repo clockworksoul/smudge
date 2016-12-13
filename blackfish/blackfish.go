@@ -53,7 +53,7 @@ func main() {
 	blackfish.SetStaleMillis(millis_to_stale)
 
 	if node != "" {
-		blackfish.AddNode(node)
+		blackfish.AddNodeByName(node)
 	}
 
 	blackfish.Begin()

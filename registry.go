@@ -26,8 +26,21 @@ func init() {
 	}
 }
 
+func AddNode(node Node) {
+	fmt.Println("Adding host:", node.Address())
+
+	node.Touch()
+	node.Heartbeats = current_heartbeat
+
+	live_nodes[node.Address()] = &node
+
+	for k, v := range live_nodes {
+		fmt.Printf(" k=%s v=%v\n", k, v)
+	}
+}
+
 // Explicitly adds a node to this server's internal nodes list.
-func AddNode(name string) {
+func AddNodeByName(name string) {
 	host, port, err := parseNodeAddress(name)
 
 	if err != nil {
@@ -37,7 +50,7 @@ func AddNode(name string) {
 
 	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
 
-	registerNewNode(node)
+	AddNode(node)
 }
 
 func GetLocalIP() (net.IP, error) {
@@ -60,7 +73,8 @@ func GetLocalIP() (net.IP, error) {
 	return ip, nil
 }
 
-// Loops through the nodes map and removes the dead ones.
+// Loops through the nodes map and removes nodes that haven't been heard
+// from in > GetDeadMillis() milliseconds.
 func PruneDeadFromList() {
 	for k, n := range live_nodes {
 		if n.Age() > uint32(GetDeadMillis()) {
@@ -72,13 +86,14 @@ func PruneDeadFromList() {
 	}
 }
 
+// Returns a random dead node to the live_nodes map.
 func ResurrectDeadNode() {
 	if len(dead_nodes) == 1 {
-		registerNewNode(dead_nodes[0])
+		AddNode(dead_nodes[0])
 		dead_nodes = make([]Node, 0, 64)
 	} else if len(dead_nodes) > 1 {
 		i := rand.Intn(len(dead_nodes))
-		registerNewNode(dead_nodes[i])
+		AddNode(dead_nodes[i])
 
 		dsub := dead_nodes[:i]
 		dead_nodes := dead_nodes[i+1:]
@@ -89,8 +104,9 @@ func ResurrectDeadNode() {
 	}
 }
 
-// If port is 0, is uses the port number of this instance.
-func lookupNodeByAddress(ip net.IP, port uint16) *Node {
+// Returns a pointer to the requested Node. If port is 0, is uses the value
+// of GetListenPort(). If the Node cannot be found, this returns nil.
+func GetNodeByIP(ip net.IP, port uint16) *Node {
 	if port == 0 {
 		port = uint16(GetListenPort())
 	}
@@ -190,7 +206,7 @@ func mergeNodeLists(msgNodes *[]Node) *[]Node {
 		} else {
 			// We do not have this node in our list. Add it.
 			fmt.Println("New node identified:", msgNode)
-			registerNewNode(msgNode)
+			AddNode(msgNode)
 
 			mergedNodes = append(mergedNodes, msgNode)
 		}
@@ -219,7 +235,7 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 		}
 	} else {
 		host = hostAndMaybePort
-		port = uint16(DEFAULT_LISTEN_PORT)
+		port = uint16(GetListenPort())
 	}
 
 	ips, err := net.LookupIP(host)
@@ -240,19 +256,8 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	return ip, port, err
 }
 
-func registerNewNode(node Node) {
-	fmt.Println("Adding host:", node.Address())
-
-	node.Touch()
-	node.Heartbeats = current_heartbeat
-
-	live_nodes[node.Address()] = &node
-
-	for k, v := range live_nodes {
-		fmt.Printf(" k=%s v=%v\n", k, v)
-	}
-}
-
+// Returns a unique identifying non-deterministic string for this host.
+//
 func generateIdentifier() string {
 	bytes := make([]byte, 0, 1000)
 
