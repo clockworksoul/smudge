@@ -35,10 +35,7 @@ func Begin() {
 			Heartbeats: current_heartbeat,
 			Timestamp:  GetNowInMillis()}
 
-		AddNode(me)
-
 		this_host_address = me.Address()
-
 		this_host = &me
 
 		fmt.Println("My host address:", this_host_address)
@@ -134,9 +131,16 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 		return err
 	}
 
-	// If the sender is new to us, we know it now.
+	// If the sender is new to us (and it isn't this host), we know it now.
 	if msg.sender == nil {
-		msg.sender = AddNodeByIP(msg.senderIP, msg.senderPort)
+		sender := Node{
+			Host:      msg.senderIP,
+			Port:      msg.senderPort,
+			Timestamp: GetNowInMillis()}
+
+		if sender.Address() != this_host_address {
+			msg.sender = AddNode(sender)
+		}
 	}
 
 	// Handle the verb. Each verb is three characters, and is one of the
