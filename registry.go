@@ -9,48 +9,60 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Currenty active nodes.
-var live_nodes map[string]*Node
+var live_nodes = struct {
+	sync.RWMutex
+	m map[string]*Node
+}{m: make(map[string]*Node)}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
 // rejoin the living.
 var dead_nodes []Node
 
 func init() {
-	if live_nodes == nil {
-		live_nodes = make(map[string]*Node)
-		dead_nodes = make([]Node, 0, 64)
-	}
+	dead_nodes = make([]Node, 0, 64)
 }
 
-func AddNode(node Node) {
+func AddNode(node Node) *Node {
 	fmt.Println("Adding host:", node.Address())
 
 	node.Touch()
 	node.Heartbeats = current_heartbeat
 
-	live_nodes[node.Address()] = &node
+	live_nodes.Lock()
+	live_nodes.m[node.Address()] = &node
+	live_nodes.Unlock()
 
-	for k, v := range live_nodes {
-		fmt.Printf(" k=%s v=%v\n", k, v)
-	}
+	return &node
 }
 
 // Explicitly adds a node to this server's internal nodes list.
-func AddNodeByName(name string) {
+func AddNodeByName(name string) *Node {
 	host, port, err := parseNodeAddress(name)
 
 	if err != nil {
 		fmt.Println("Failure to parse node name:", err)
-		return
+		return nil
 	}
 
 	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
 
 	AddNode(node)
+
+	return &node
+}
+
+// Explicitly adds a node to this server's internal nodes list.
+func AddNodeByIP(host net.IP, port uint16) *Node {
+	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
+
+	AddNode(node)
+
+	return &node
 }
 
 func GetLocalIP() (net.IP, error) {
@@ -76,14 +88,19 @@ func GetLocalIP() (net.IP, error) {
 // Loops through the nodes map and removes nodes that haven't been heard
 // from in > GetDeadMillis() milliseconds.
 func PruneDeadFromList() {
-	for k, n := range live_nodes {
+	live_nodes.Lock()
+
+	for k, n := range live_nodes.m {
 		if n.Age() > uint32(GetDeadMillis()) {
 			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
 
-			delete(live_nodes, k)
+			delete(live_nodes.m, k)
+
 			dead_nodes = append(dead_nodes, *n)
 		}
 	}
+
+	live_nodes.Unlock()
 }
 
 // Returns a random dead node to the live_nodes map.
@@ -113,7 +130,9 @@ func GetNodeByIP(ip net.IP, port uint16) *Node {
 
 	address := ip.String() + ":" + strconv.FormatInt(int64(port), 10)
 
-	node, _ := live_nodes[address]
+	live_nodes.RLock()
+	node, _ := live_nodes.m[address]
+	live_nodes.RUnlock()
 
 	return node
 }
@@ -137,15 +156,16 @@ func getRandomNodes(size int, exclude *[]Node) *[]Node {
 	}
 
 	// If size is less than the entire set of nodes, shuffle and get a subset.
-	if size <= 0 || size > len(live_nodes) {
-		size = len(live_nodes)
+	live_nodes.RLock()
+	if size <= 0 || size > len(live_nodes.m) {
+		size = len(live_nodes.m)
 	}
 
 	// Copy the complete nodes map into a slice
 	rnodes := make([]Node, 0, size)
 
 	var c int
-	for _, n := range live_nodes {
+	for _, n := range live_nodes.m {
 		// If a node is not stale...
 		//
 		if n.Age() < uint32(GetStaleMillis()) {
@@ -162,6 +182,7 @@ func getRandomNodes(size int, exclude *[]Node) *[]Node {
 			}
 		}
 	}
+	live_nodes.RUnlock()
 
 	if size < len(rnodes) {
 		// Shuffle the slice
@@ -183,7 +204,13 @@ func mergeNodeLists(msgNodes *[]Node) *[]Node {
 	mergedNodes := make([]Node, 0, 1)
 
 	for _, msgNode := range *msgNodes {
-		if existingNode, ok := live_nodes[msgNode.Address()]; ok {
+		live_nodes.RLock()
+
+		existingNode, ok := live_nodes.m[msgNode.Address()]
+
+		live_nodes.RUnlock()
+
+		if ok {
 			// If the heartbeats are exactly equal, we don't merge the node,
 			// but since we also don't want to retarnsmit it back to its source
 			// we add to the slice of 'merged' nodes.

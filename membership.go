@@ -6,20 +6,22 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
 var current_heartbeat uint32
 
-var pending_acks map[string]*pendingAck
+var pending_acks = struct {
+	sync.RWMutex
+	m map[string]*pendingAck
+}{m: make(map[string]*pendingAck)}
 
 var this_host_address string
 
-var TIMEOUT_MILLIS uint32 = 2500
+var this_host *Node
 
-func init() {
-	pending_acks = make(map[string]*pendingAck)
-}
+var TIMEOUT_MILLIS uint32 = 2500
 
 func Begin() {
 	// Add this host.
@@ -37,7 +39,10 @@ func Begin() {
 
 		this_host_address = me.Address()
 
+		this_host = &me
+
 		fmt.Println("My host address:", this_host_address)
+		fmt.Println("My host:", this_host)
 	}
 
 	go ListenUDP(GetListenPort())
@@ -74,7 +79,7 @@ func ListenUDP(port int) error {
 	defer c.Close()
 
 	for {
-		buf := make([]byte, 16)
+		buf := make([]byte, 17)
 		n, addr, err := c.ReadFromUDP(buf)
 		if err != nil {
 			fmt.Println("UDP read error: ", err)
@@ -90,11 +95,13 @@ func ListenUDP(port int) error {
 }
 
 func PingAllNodes() {
-	fmt.Println(len(live_nodes), "nodes")
+	fmt.Println(len(live_nodes.m), "nodes")
 
-	for _, node := range live_nodes {
+	live_nodes.RLock()
+	for _, node := range live_nodes.m {
 		go PingNode(node)
 	}
+	live_nodes.RUnlock()
 }
 
 // Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
@@ -103,9 +110,11 @@ func PingNNodes(count int) {
 	rnodes := GetRandomNodes(count)
 
 	// Loop over nodes and ping them
+	live_nodes.RLock()
 	for _, node := range *rnodes {
 		go PingNode(&node)
 	}
+	live_nodes.RUnlock()
 }
 
 // User-friendly method to explicitly ping a node. Calls the low-level
@@ -125,47 +134,58 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 		return err
 	}
 
+	// If the sender is new to us, we know it now.
 	if msg.sender == nil {
-		// TODO If it's associated with a DEAD node do we revive it?
-		fmt.Println("IP is not associated with a live node:", addr.IP)
-	} else {
-		// Handle the verb. Each verb is three characters, and is one of the
-		// following:
-		//   PNG - Ping
-		//   ACK - Acknowledge
-		//   FWD - Forwarding ping (contains origin address)
-		//   NFP - Non-forwarding ping
-		switch {
-		case msg.verb == "PNG":
-			err = receiveVerbPingUDP(msg)
-		case msg.verb == "ACK":
-			err = receiveVerbAckUDP(msg)
-		case msg.verb == "FWD":
-			err = receiveVerbForwardUDP(msg)
-		case msg.verb == "NFP":
-			err = receiveVerbNonForwardPingUDP(msg)
-		}
+		msg.sender = AddNodeByIP(msg.senderIP, msg.senderPort)
+	}
 
-		if err != nil {
-			return err
-		}
+	// Handle the verb. Each verb is three characters, and is one of the
+	// following:
+	//   PNG - Ping
+	//   ACK - Acknowledge
+	//   FWD - Forwarding ping (contains origin address)
+	//   NFP - Non-forwarding ping
+	switch {
+	case msg.verb == "PING":
+		err = receiveVerbPingUDP(msg)
+	case msg.verb == "ACK":
+		err = receiveVerbAckUDP(msg)
+	case msg.verb == "FORWARD":
+		err = receiveVerbForwardUDP(msg)
+	case msg.verb == "NFPING":
+		err = receiveVerbNonForwardPingUDP(msg)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// Synchronize heartbeats
+	if msg.senderCode > current_heartbeat {
+		current_heartbeat = msg.senderCode - 1
 	}
 
 	return nil
 }
 
 func receiveVerbAckUDP(msg message) error {
-	fmt.Println("GOT ACK FROM", msg.sender.Address(), msg.code)
+	fmt.Println("GOT ACK FROM", msg.sender.Address(), msg.senderCode)
 
-	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.code), 10)
+	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.senderCode), 10)
 
-	if _, ok := pending_acks[key]; ok {
+	pending_acks.RLock()
+	_, ok := pending_acks.m[key]
+	pending_acks.RUnlock()
+
+	if ok {
 		// TODO Keep statistics on response times
 
 		msg.sender.Heartbeats = current_heartbeat
 		msg.sender.Touch()
 
-		delete(pending_acks, key)
+		pending_acks.Lock()
+		delete(pending_acks.m, key)
+		pending_acks.Unlock()
 	} else {
 		fmt.Println("**NO", key)
 	}
@@ -174,34 +194,36 @@ func receiveVerbAckUDP(msg message) error {
 }
 
 func receiveVerbForwardUDP(msg message) error {
-	fmt.Println("GOT FWD FROM", msg.sender.Address(), msg.code)
+	fmt.Println("GOT FORWARD FROM", msg.sender.Address(), msg.senderCode)
 
-	return errors.New("FWD: Unsupported operation")
+	return errors.New("FORWARD: Unsupported (for now) operation")
 }
 
 func receiveVerbPingUDP(msg message) error {
-	fmt.Println("GOT PNG FROM", msg.sender.Address(), msg.code)
+	fmt.Println("GOT PING FROM", msg.sender.Address(), msg.senderCode)
 
-	return transmitVerbAckUDP(msg.sender, msg.code)
+	return transmitVerbAckUDP(msg.sender, msg.senderCode)
 }
 
 func receiveVerbNonForwardPingUDP(msg message) error {
-	fmt.Println("GOT NFP FROM", msg.sender.Address(), msg.code)
+	fmt.Println("GOT NFPING FROM", msg.sender.Address(), msg.senderCode)
 
-	return errors.New("NFP: Unsupported operation")
+	return errors.New("NFPING: Unsupported (for now) operation")
 }
 
 func startTimeoutCheckLoop() {
 	for {
-		for k, ack := range pending_acks {
+		pending_acks.Lock()
+		for k, ack := range pending_acks.m {
 			elapsed := ack.Elapsed()
 
 			if elapsed > TIMEOUT_MILLIS {
 				fmt.Println(k, "timed out after", TIMEOUT_MILLIS, " milliseconds")
 
-				delete(pending_acks, k)
+				delete(pending_acks.m, k)
 			}
 		}
+		pending_acks.Unlock()
 
 		time.Sleep(time.Millisecond * 1000)
 	}
@@ -220,7 +242,14 @@ func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
 	}
 	defer c.Close()
 
-	_, err = c.Write(encodeMessage(message{verb: verb, code: code}))
+	msg := message{
+		verb:       verb,
+		sender:     this_host,
+		senderIP:   this_host.Host,
+		senderPort: this_host.Port,
+		senderCode: code}
+
+	_, err = c.Write(encodeMessage(msg))
 	if err != nil {
 		return err
 	}
@@ -235,9 +264,12 @@ func transmitVerbAckUDP(node *Node, code uint32) error {
 func transmitVerbPingUDP(node *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 	pack := pendingAck{Node: node, StartTime: GetNowInMillis()}
-	pending_acks[key] = &pack
 
-	return transmitVerbGenericUDP(node, "PNG", code)
+	pending_acks.Lock()
+	pending_acks.m[key] = &pack
+	pending_acks.Unlock()
+
+	return transmitVerbGenericUDP(node, "PING", code)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

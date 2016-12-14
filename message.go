@@ -6,62 +6,143 @@ import (
 )
 
 type message struct {
-	verb   string
-	code   uint32
-	sender *Node
-	origin *Node
+	verb       string
+	sender     *Node
+	senderIP   net.IP
+	senderPort uint16
+	senderCode uint32
+	origin     *Node
+	originIP   net.IP
+	originPort uint16
+	originCode uint32
 }
 
+// Message contents (byte, content)
+// Bytes Content
+// Bytes 00    Verb (one of {P|A|F|N})
+// Bytes 01-02 Sender response port
+// Bytes 03-06 Sender ID Code
+// Bytes 07-10 Originating host IP (FWD only)
+// Bytes 11-12 Originating host response port (FWD only)
+// Bytes 13-16 Originating message code (FWD only)
+
 func encodeMessage(msg message) []byte {
-	bytes_out := []byte(msg.verb)
+	bytes := make([]byte, 17, 17)
 
-	bytes_out = append(bytes_out, byte(0))
+	// Bytes 00    Verb (one of {P|A|F|N})
+	// Translation: the first character of the message verb
+	bytes[0] = []byte(msg.verb)[0]
 
-	code := msg.code
-	for i := uint32(0); i < 32; i += 8 {
-		code >>= i
-		bytes_out = append(bytes_out, byte(code))
+	// Bytes 01-02 Sender response port
+	sport := msg.senderPort
+	for i := uint16(0); i < 2; i++ {
+		sport >>= (i * 8)
+		bytes[i+1] = byte(sport)
 	}
 
-	return bytes_out
+	// Bytes 03-06 ID Code
+	scode := msg.senderCode
+	for i := uint32(0); i < 4; i++ {
+		scode >>= (i * 8)
+		bytes[i+3] = byte(scode)
+	}
+
+	// Bytes 07-10 Originating host IP (FWD only)
+	if msg.originIP != nil {
+		ipb := []byte(msg.originIP)
+
+		for i := 0; i < 4; i++ {
+			bytes[i+7] = ipb[i]
+		}
+	}
+
+	// Bytes 11-12 Originating host response port (FWD only)
+	oport := msg.originPort
+	for i := uint16(0); i < 2; i++ {
+		oport >>= (i * 8)
+		bytes[i+11] = byte(oport)
+	}
+
+	// Bytes 13-16 Originating message code (FWD only)
+	ocode := msg.originCode
+	for i := uint32(0); i < 2; i++ {
+		ocode >>= (i * 8)
+		bytes[i+13] = byte(ocode)
+	}
+
+	return bytes
 }
 
 // Parses the bytes received in a UDP message.
 // If the address:port from the message can't be associated with a known
 // (live) node, then the value of message.sender will be nil.
-func decodeMessage(addr *net.UDPAddr, msg_bytes []byte) (message, error) {
+func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	msg := message{}
 
-	// TODO
 	// Message contents (byte, content)
 	// Bytes Content
-	// 00-02 Verb
-	// 03-06 ID Code
-	// 07-08 Sender response port
-	// 09-12 Originating host IP (FWD only)
-	// 13-14 Originating host response port (FWD only)
-	// 15-18 Originating message code (FWD only)
+	// Bytes 00    Verb (one of {P|A|F|N})
+	// Bytes 01-02 Sender response port
+	// Bytes 03-06 Sender ID Code
+	// Bytes 07-10 Originating host IP (FWD only)
+	// Bytes 11-12 Originating host response port (FWD only)
+	// Bytes 13-16 Originating message code (FWD only)
 
-	// Scan to find the null byte and use that to find the verb
-	for i, b := range msg_bytes {
-		if b == 0 {
-			msg.verb = string(msg_bytes[:i])
-			break
-		}
-	}
-
-	// Everything after is the code value
-	for j := len(msg_bytes) - 1; j > len(msg.verb); j-- {
-		msg.code <<= 8
-		msg.code |= uint32(msg_bytes[j])
+	// Bytes 00    Verb (one of {P|A|F|N})
+	verb_char := string(bytes[0:1])
+	switch {
+	case verb_char == "P":
+		msg.verb = "PING"
+	case verb_char == "A":
+		msg.verb = "ACK"
+	case verb_char == "F":
+		msg.verb = "FORWARD"
+	case verb_char == "N":
+		msg.verb = "NFPING"
 	}
 
 	if msg.verb == "" {
 		return msg, errors.New("Verb not found")
 	}
 
+	msg.senderIP = addr.IP.To4()
+
+	// Bytes 01-02 Sender response port
+	for i := 2; i >= 1; i-- {
+		msg.senderPort <<= 8
+		msg.senderPort |= uint16(bytes[i])
+	}
+
+	// Bytes 03-06 Sender ID Code
+	for i := 6; i >= 3; i-- {
+		msg.senderCode <<= 8
+		msg.senderCode |= uint32(bytes[i])
+	}
+
 	// Find the sender by the address associated with the message actual
-	msg.sender = GetNodeByIP(addr.IP, 0) // TODO: Parse out port!
+	msg.sender = GetNodeByIP(msg.senderIP, msg.senderPort)
+
+	// Bytes 07-10 Originating host IP (FWD only)
+	if bytes[7] > 0 {
+		msg.originIP = net.IPv4(bytes[7], bytes[8], bytes[9], bytes[10]).To4()
+	}
+
+	// Bytes 11-12 Originating host response port (FWD only)
+	for i := 12; i >= 11; i-- {
+		msg.originPort <<= 8
+		msg.originPort |= uint16(bytes[i])
+	}
+
+	// Bytes 13-16 Originating message code (FWD only)
+	for i := 16; i >= 13; i-- {
+		msg.originCode <<= 8
+		msg.originCode |= uint32(bytes[i])
+	}
+
+	if len(msg.originIP) > 0 {
+		// Find the sender by the address associated with the message actual
+		msg.origin = GetNodeByIP(msg.originIP, msg.originPort)
+	}
 
 	return msg, nil
 }
