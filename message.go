@@ -6,15 +6,15 @@ import (
 )
 
 type message struct {
-	verb       string
-	sender     *Node
-	senderIP   net.IP
-	senderPort uint16
-	senderCode uint32
-	origin     *Node
-	originIP   net.IP
-	originPort uint16
-	originCode uint32
+	verb           string
+	sender         *Node
+	senderIP       net.IP
+	senderPort     uint16
+	senderCode     uint32
+	downstream     *Node
+	downstreamIP   net.IP
+	downstreamPort uint16
+	downstreamCode uint32
 }
 
 // Message contents (byte, content)
@@ -48,8 +48,8 @@ func encodeMessage(msg message) []byte {
 	}
 
 	// Bytes 07-10 Originating host IP (FWD only)
-	if msg.originIP != nil {
-		ipb := []byte(msg.originIP)
+	if msg.downstreamIP != nil {
+		ipb := []byte(msg.downstreamIP)
 
 		for i := 0; i < 4; i++ {
 			bytes[i+7] = ipb[i]
@@ -57,14 +57,14 @@ func encodeMessage(msg message) []byte {
 	}
 
 	// Bytes 11-12 Originating host response port (FWD only)
-	oport := msg.originPort
+	oport := msg.downstreamPort
 	for i := uint16(0); i < 2; i++ {
 		oport >>= (i * 8)
 		bytes[i+11] = byte(oport)
 	}
 
 	// Bytes 13-16 Originating message code (FWD only)
-	ocode := msg.originCode
+	ocode := msg.downstreamCode
 	for i := uint32(0); i < 2; i++ {
 		ocode >>= (i * 8)
 		bytes[i+13] = byte(ocode)
@@ -124,24 +124,28 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 
 	// Bytes 07-10 Originating host IP (FWD only)
 	if bytes[7] > 0 {
-		msg.originIP = net.IPv4(bytes[7], bytes[8], bytes[9], bytes[10]).To4()
+		msg.downstreamIP = net.IPv4(bytes[7], bytes[8], bytes[9], bytes[10]).To4()
 	}
 
 	// Bytes 11-12 Originating host response port (FWD only)
 	for i := 12; i >= 11; i-- {
-		msg.originPort <<= 8
-		msg.originPort |= uint16(bytes[i])
+		msg.downstreamPort <<= 8
+		msg.downstreamPort |= uint16(bytes[i])
 	}
 
 	// Bytes 13-16 Originating message code (FWD only)
 	for i := 16; i >= 13; i-- {
-		msg.originCode <<= 8
-		msg.originCode |= uint32(bytes[i])
+		msg.downstreamCode <<= 8
+		msg.downstreamCode |= uint32(bytes[i])
 	}
 
-	if len(msg.originIP) > 0 {
+	if len(msg.downstreamIP) > 0 {
 		// Find the sender by the address associated with the message actual
-		msg.origin = GetNodeByIP(msg.originIP, msg.originPort)
+		msg.downstream = GetNodeByIP(msg.downstreamIP, msg.downstreamPort)
+
+		if msg.downstream == nil {
+			msg.downstream = AddNodeByIP(msg.downstreamIP, msg.downstreamPort)
+		}
 	}
 
 	return msg, nil

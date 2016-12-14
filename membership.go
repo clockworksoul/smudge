@@ -184,6 +184,14 @@ func receiveVerbAckUDP(msg message) error {
 		msg.sender.Touch()
 
 		pending_acks.Lock()
+
+		// If this was a forwarded ping, respond to the callback node
+		if pack, ok := pending_acks.m[key]; ok {
+			if pack.Callback != nil {
+				go transmitVerbAckUDP(pack.Callback, pack.CallbackCode)
+			}
+		}
+
 		delete(pending_acks.m, key)
 		pending_acks.Unlock()
 	} else {
@@ -196,7 +204,19 @@ func receiveVerbAckUDP(msg message) error {
 func receiveVerbForwardUDP(msg message) error {
 	fmt.Println("GOT FORWARD FROM", msg.sender.Address(), msg.senderCode)
 
-	return errors.New("FORWARD: Unsupported (for now) operation")
+	node := msg.downstream
+	code := msg.downstreamCode
+	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
+	pack := pendingAck{Node: node,
+		StartTime:    GetNowInMillis(),
+		Callback:     node,
+		CallbackCode: code}
+
+	pending_acks.Lock()
+	pending_acks.m[key] = &pack
+	pending_acks.Unlock()
+
+	return transmitVerbGenericUDP(node, nil, "PING", code)
 }
 
 func receiveVerbPingUDP(msg message) error {
@@ -208,7 +228,7 @@ func receiveVerbPingUDP(msg message) error {
 func receiveVerbNonForwardPingUDP(msg message) error {
 	fmt.Println("GOT NFPING FROM", msg.sender.Address(), msg.senderCode)
 
-	return errors.New("NFPING: Unsupported (for now) operation")
+	return transmitVerbAckUDP(msg.sender, msg.senderCode)
 }
 
 func startTimeoutCheckLoop() {
@@ -220,6 +240,11 @@ func startTimeoutCheckLoop() {
 			if elapsed > TIMEOUT_MILLIS {
 				fmt.Println(k, "timed out after", TIMEOUT_MILLIS, " milliseconds")
 
+				// If a pending ack has a "downstream" field defined, then
+				// it's the result of a NFP and we don't forward it. If it
+				// isn't defined, we forward this request to a random host.
+				go doForwardOnTimeout(ack)
+
 				delete(pending_acks.m, k)
 			}
 		}
@@ -229,7 +254,23 @@ func startTimeoutCheckLoop() {
 	}
 }
 
-func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
+func doForwardOnTimeout(pack *pendingAck) {
+	timed_out_address := pack.Node.Address()
+
+	random_node := GetRandomLiveNode(timed_out_address, this_host_address)
+
+	if random_node == nil {
+		fmt.Println(timed_out_address, "Cannot forward ping request: no more nodes")
+	} else {
+		fmt.Printf("Requesting indirect ping of %s via %s\n",
+			pack.Node.Address(),
+			random_node.Address())
+
+		transmitVerbForwardUDP(random_node, pack.Node, current_heartbeat)
+	}
+}
+
+func transmitVerbGenericUDP(node *Node, downstream *Node, verb string, code uint32) error {
 	// Transmit the ACK
 	remote_addr, err := net.ResolveUDPAddr("udp", node.Address())
 	if err != nil {
@@ -249,6 +290,13 @@ func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
 		senderPort: this_host.Port,
 		senderCode: code}
 
+	if downstream != nil {
+		msg.downstream = downstream
+		msg.downstreamIP = downstream.Host
+		msg.downstreamPort = downstream.Port
+		msg.downstreamCode = code
+	}
+
 	_, err = c.Write(encodeMessage(msg))
 	if err != nil {
 		return err
@@ -257,8 +305,19 @@ func transmitVerbGenericUDP(node *Node, verb string, code uint32) error {
 	return nil
 }
 
+func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
+	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
+	pack := pendingAck{Node: node, StartTime: GetNowInMillis(), Callback: downstream}
+
+	pending_acks.Lock()
+	pending_acks.m[key] = &pack
+	pending_acks.Unlock()
+
+	return transmitVerbGenericUDP(node, nil, "PING", code)
+}
+
 func transmitVerbAckUDP(node *Node, code uint32) error {
-	return transmitVerbGenericUDP(node, "ACK", code)
+	return transmitVerbGenericUDP(node, nil, "ACK", code)
 }
 
 func transmitVerbPingUDP(node *Node, code uint32) error {
@@ -269,7 +328,7 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 	pending_acks.m[key] = &pack
 	pending_acks.Unlock()
 
-	return transmitVerbGenericUDP(node, "PING", code)
+	return transmitVerbGenericUDP(node, nil, "PING", code)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -531,8 +590,10 @@ func ListenTCP(port int) error {
 }
 
 type pendingAck struct {
-	StartTime uint32
-	Node      *Node
+	StartTime    uint32
+	Node         *Node
+	Callback     *Node
+	CallbackCode uint32
 }
 
 func (a *pendingAck) Elapsed() uint32 {

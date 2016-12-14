@@ -65,6 +65,67 @@ func AddNodeByIP(host net.IP, port uint16) *Node {
 	return &node
 }
 
+func GetLiveNodeKeys() []string {
+	keys := make([]string, len(live_nodes.m))
+
+	i := 0
+	for k := range live_nodes.m {
+		keys[i] = k
+		i++
+	}
+
+	return keys
+}
+
+func GetLiveNodeValues() []*Node {
+	values := make([]*Node, len(live_nodes.m))
+
+	live_nodes.RLock()
+
+	i := 0
+	for _, v := range live_nodes.m {
+		values[i] = v
+		i++
+	}
+
+	live_nodes.RUnlock()
+
+	return values
+}
+
+// Returns a random live node from the live_nodes map.
+func GetRandomLiveNode(exclude_keys ...string) *Node {
+	var filtered []string
+
+	raw_keys := GetLiveNodeKeys()
+
+	if len(exclude_keys) == 0 {
+		filtered = raw_keys
+	} else {
+		filtered = make([]string, 0, len(raw_keys))
+
+		// Build a filtered list excluding the excluded keys
+	Outer:
+		for _, rk := range raw_keys {
+			for _, ex := range exclude_keys {
+				if rk == ex {
+					continue Outer
+				}
+
+				filtered = append(filtered)
+			}
+		}
+	}
+
+	if len(filtered) > 0 {
+		// Okay, get a random index, and return the appropriate *Node
+		i := rand.Intn(len(filtered))
+		return live_nodes.m[filtered[i]]
+	} else {
+		return nil
+	}
+}
+
 func GetLocalIP() (net.IP, error) {
 	var ip net.IP
 
