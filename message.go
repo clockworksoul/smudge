@@ -120,7 +120,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Find the sender by the address associated with the message actual
-	msg.sender = GetNodeByIP(msg.senderIP, msg.senderPort)
+	msg.sender = live_nodes.GetByIP(msg.senderIP, msg.senderPort)
 
 	// Bytes 07-10 Originating host IP (FWD only)
 	if bytes[7] > 0 {
@@ -141,10 +141,10 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 
 	if len(msg.downstreamIP) > 0 {
 		// Find the sender by the address associated with the message actual
-		msg.downstream = GetNodeByIP(msg.downstreamIP, msg.downstreamPort)
+		msg.downstream = live_nodes.GetByIP(msg.downstreamIP, msg.downstreamPort)
 
 		if msg.downstream == nil {
-			msg.downstream = AddNodeByIP(msg.downstreamIP, msg.downstreamPort)
+			_, msg.downstream, _ = live_nodes.AddByIP(msg.downstreamIP, msg.downstreamPort)
 		}
 	}
 

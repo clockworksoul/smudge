@@ -26,7 +26,6 @@ func (m *NodeMap) Add(node Node) (string, *Node, error) {
 
 	key := node.Address()
 
-	//
 	node.Touch()
 	node.Heartbeats = current_heartbeat
 
@@ -37,11 +36,11 @@ func (m *NodeMap) Add(node Node) (string, *Node, error) {
 	return key, &node, nil
 }
 
-// Given a node name ("host:port" string), creates a new node instance
-// and adds it to the map. If this name already exists in the map, this
+// Given a node address ("host:port" string), creates a new node instance
+// and adds it to the map. If this address already exists in the map, this
 // function replaces the existing node.
-func (m *NodeMap) AddByName(name string) (string, *Node, error) {
-	host, port, err := parseNodeAddress(name)
+func (m *NodeMap) AddByAddress(address string) (string, *Node, error) {
+	host, port, err := parseNodeAddress(address)
 
 	if err == nil {
 		node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
@@ -59,6 +58,15 @@ func (m *NodeMap) AddByIP(host net.IP, port uint16) (string, *Node, error) {
 	return m.Add(node)
 }
 
+// Returns a pointer to the requested Node
+func (m *NodeMap) GetByAddress(address string) *Node {
+	m.RLock()
+	node, _ := m.nodes[address]
+	m.RUnlock()
+
+	return node
+}
+
 // Returns a pointer to the requested Node. If port is 0, is uses the value
 // of GetListenPort(). If the Node cannot be found, this returns nil.
 func (m *NodeMap) GetByIP(ip net.IP, port uint16) *Node {
@@ -68,11 +76,7 @@ func (m *NodeMap) GetByIP(ip net.IP, port uint16) *Node {
 
 	address := ip.String() + ":" + strconv.FormatInt(int64(port), 10)
 
-	m.RLock()
-	node, _ := m.nodes[address]
-	m.RUnlock()
-
-	return node
+	return m.GetByAddress(address)
 }
 
 // Returns a single random node from the nodes map. If no nodes are available,
@@ -80,7 +84,7 @@ func (m *NodeMap) GetByIP(ip net.IP, port uint16) *Node {
 func (m *NodeMap) GetRandom(exclude_keys ...string) *Node {
 	var filtered []string
 
-	raw_keys := GetLiveNodeKeys()
+	raw_keys := m.Keys()
 
 	if len(exclude_keys) == 0 {
 		filtered = raw_keys
@@ -94,9 +98,9 @@ func (m *NodeMap) GetRandom(exclude_keys ...string) *Node {
 				if rk == ex {
 					continue Outer
 				}
-
-				filtered = append(filtered)
 			}
+
+			filtered = append(filtered, rk)
 		}
 	}
 
@@ -169,6 +173,10 @@ func (m *NodeMap) getRandomNodes(size int, exclude *[]Node) *[]Node {
 	return &rnodes
 }
 
+func (m *NodeMap) Length() int {
+	return len(m.nodes)
+}
+
 // Merges a slice of nodes into the nodes map.
 // Returns a slice of the nodes that were merged or updated (or ignored for
 // having exactly equal heartbeats)
@@ -205,7 +213,7 @@ func (m *NodeMap) mergeNodeLists(msgNodes *[]Node) *[]Node {
 		} else {
 			// We do not have this node in our list. Add it.
 			fmt.Println("New node identified:", msgNode)
-			AddNode(msgNode)
+			m.Add(msgNode)
 
 			mergedNodes = append(mergedNodes, msgNode)
 		}

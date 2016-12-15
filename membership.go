@@ -92,10 +92,10 @@ func ListenUDP(port int) error {
 }
 
 func PingAllNodes() {
-	fmt.Println(len(live_nodes.m), "nodes")
+	fmt.Println(live_nodes.Length(), "nodes")
 
 	live_nodes.RLock()
-	for _, node := range live_nodes.m {
+	for _, node := range live_nodes.nodes {
 		go PingNode(node)
 	}
 	live_nodes.RUnlock()
@@ -139,7 +139,7 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 			Timestamp: GetNowInMillis()}
 
 		if sender.Address() != this_host_address {
-			msg.sender = AddNode(sender)
+			_, msg.sender, _ = live_nodes.Add(sender)
 		}
 	}
 
@@ -220,7 +220,7 @@ func receiveVerbForwardUDP(msg message) error {
 	pending_acks.m[key] = &pack
 	pending_acks.Unlock()
 
-	return transmitVerbGenericUDP(node, nil, "PING", code)
+	return transmitVerbGenericUDP(node, nil, "NFPING", code)
 }
 
 func receiveVerbPingUDP(msg message) error {
@@ -261,7 +261,7 @@ func startTimeoutCheckLoop() {
 func doForwardOnTimeout(pack *pendingAck) {
 	timed_out_address := pack.Node.Address()
 
-	random_node := GetRandomLiveNode(timed_out_address, this_host_address)
+	random_node := live_nodes.GetRandom(timed_out_address, this_host_address)
 
 	if random_node == nil {
 		fmt.Println(timed_out_address, "Cannot forward ping request: no more nodes")
@@ -317,7 +317,7 @@ func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
 	pending_acks.m[key] = &pack
 	pending_acks.Unlock()
 
-	return transmitVerbGenericUDP(node, nil, "PING", code)
+	return transmitVerbGenericUDP(node, downstream, "FORWARD", code)
 }
 
 func transmitVerbAckUDP(node *Node, code uint32) error {
@@ -478,7 +478,7 @@ func receiveVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) er
 
 	// Finally, merge the list of nodes we received from the peer into ours
 	//
-	mergedNodes := mergeNodeLists(msgNodes)
+	mergedNodes := live_nodes.mergeNodeLists(msgNodes)
 
 	// Reply with our own nodes list
 	//
@@ -562,7 +562,7 @@ func transmitVerbList(c *net.Conn, encoder *gob.Encoder, decoder *gob.Decoder) e
 		return err
 	}
 
-	mergeNodeLists(msgNodes)
+	live_nodes.mergeNodeLists(msgNodes)
 
 	return nil
 }
