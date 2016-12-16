@@ -7,7 +7,7 @@ import (
 )
 
 type Node struct {
-	Host       net.IP
+	IP         net.IP
 	Port       uint16
 	Heartbeats uint32
 	Timestamp  uint32
@@ -21,7 +21,7 @@ func (n *Node) Age() uint32 {
 
 func (n *Node) Address() string {
 	if n.address == "" {
-		n.address = fmt.Sprintf("%s:%d", n.Host.String(), n.Port)
+		n.address = fmt.Sprintf("%s:%d", n.IP.String(), n.Port)
 	}
 
 	return n.address

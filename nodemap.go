@@ -36,14 +36,14 @@ func (m *NodeMap) Add(node Node) (string, *Node, error) {
 	return key, &node, nil
 }
 
-// Given a node address ("host:port" string), creates a new node instance
+// Given a node address ("ip:port" string), creates a new node instance
 // and adds it to the map. If this address already exists in the map, this
 // function replaces the existing node.
 func (m *NodeMap) AddByAddress(address string) (string, *Node, error) {
-	host, port, err := parseNodeAddress(address)
+	ip, port, err := parseNodeAddress(address)
 
 	if err == nil {
-		node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
+		node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
 
 		return m.Add(node)
 	}
@@ -52,8 +52,8 @@ func (m *NodeMap) AddByAddress(address string) (string, *Node, error) {
 }
 
 // Explicitly adds a node to this server's internal nodes list.
-func (m *NodeMap) AddByIP(host net.IP, port uint16) (string, *Node, error) {
-	node := Node{Host: host, Port: port, Timestamp: GetNowInMillis()}
+func (m *NodeMap) AddByIP(ip net.IP, port uint16) (string, *Node, error) {
+	node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
 
 	return m.Add(node)
 }
