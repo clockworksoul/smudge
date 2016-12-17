@@ -1,7 +1,6 @@
 package blackfish
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -20,7 +19,7 @@ var this_host_address string
 
 var this_host *Node
 
-var TIMEOUT_MILLIS uint32 = 2500
+var TIMEOUT_MILLIS uint32 = 150
 
 func Begin() {
 	// Add this host.
@@ -41,6 +40,10 @@ func Begin() {
 		fmt.Println("My host:", this_host)
 	}
 
+	for _, n := range live_nodes.Values() {
+		UpdateNodeStatus(n, STATUS_JOINED)
+	}
+
 	go ListenUDP(GetListenPort())
 
 	go startTimeoutCheckLoop()
@@ -48,14 +51,23 @@ func Begin() {
 	for {
 		current_heartbeat++
 
-		PruneDeadFromList()
+		fmt.Printf("[%d] %d hosts\n", current_heartbeat, live_nodes.Length())
+		// PruneDeadFromList()
 
-		PingAllNodes()
+		// Ping one random node
+		node := live_nodes.GetRandom()
+		if node != nil {
+			PingNode(node)
+		} else {
+			fmt.Println("No nodes to ping. :(")
+		}
+
+		// PingAllNodes()
 
 		// 1 heartbeat in 10, we resurrect a random dead node
-		if current_heartbeat%25 == 0 {
-			ResurrectDeadNode()
-		}
+		// if current_heartbeat%25 == 0 {
+		// 	ResurrectDeadNode()
+		// }
 
 		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
 	}
@@ -75,7 +87,7 @@ func ListenUDP(port int) error {
 	defer c.Close()
 
 	for {
-		buf := make([]byte, 17)
+		buf := make([]byte, 512)
 		n, addr, err := c.ReadFromUDP(buf)
 		if err != nil {
 			fmt.Println("UDP read error: ", err)
@@ -103,12 +115,12 @@ func PingAllNodes() {
 // Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
 // PingAllNodes().
 func PingNNodes(count int) {
-	rnodes := GetRandomNodes(count)
+	rnodes := live_nodes.getRandomNodes(count)
 
 	// Loop over nodes and ping them
 	live_nodes.RLock()
-	for _, node := range *rnodes {
-		go PingNode(&node)
+	for _, node := range rnodes {
+		go PingNode(node)
 	}
 	live_nodes.RUnlock()
 }
@@ -130,13 +142,15 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 		return err
 	}
 
+	updateStatusesFromMessage(msg)
+
 	// Handle the verb. Each verb is three characters, and is one of the
 	// following:
 	//   PNG - Ping
 	//   ACK - Acknowledge
 	//   FWD - Forwarding ping (contains origin address)
 	//   NFP - Non-forwarding ping
-	switch msg.getVerb() {
+	switch msg.verb {
 	case VERB_PING:
 		err = receiveVerbPingUDP(msg)
 	case VERB_ACK:
@@ -152,17 +166,17 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 	}
 
 	// Synchronize heartbeats
-	if msg.getSenderCode() > current_heartbeat {
-		current_heartbeat = msg.getSenderCode() - 1
+	if msg.senderCode > current_heartbeat {
+		current_heartbeat = msg.senderCode - 1
 	}
 
 	return nil
 }
 
 func receiveVerbAckUDP(msg message) error {
-	fmt.Println("GOT ACK FROM", msg.getSender().Address(), msg.getSenderCode())
+	fmt.Println("GOT ACK FROM", msg.sender.Address(), msg.senderCode)
 
-	key := msg.getSender().Address() + ":" + strconv.FormatInt(int64(msg.getSenderCode()), 10)
+	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.senderCode), 10)
 
 	pending_acks.RLock()
 	_, ok := pending_acks.m[key]
@@ -171,8 +185,8 @@ func receiveVerbAckUDP(msg message) error {
 	if ok {
 		// TODO Keep statistics on response times
 
-		msg.getSender().Heartbeats = current_heartbeat
-		msg.getSender().Touch()
+		msg.sender.Heartbeats = current_heartbeat
+		msg.sender.Touch()
 
 		pending_acks.Lock()
 
@@ -193,39 +207,40 @@ func receiveVerbAckUDP(msg message) error {
 }
 
 func receiveVerbForwardUDP(msg message) error {
-	fmt.Println("GOT FORWARD FROM", msg.getSender().Address(), msg.getSenderCode())
+	fmt.Println("GOT FORWARD FROM", msg.sender.Address(), msg.senderCode)
 
-	member := msg.getForwardTo()
-	if member == nil {
-		return errors.New("No forward-to member in message")
+	if len(msg.members) >= 0 &&
+		msg.members[0].status == STATUS_FORWARD_TO {
+		member := msg.members[0]
+		node := member.node
+		code := member.code
+		key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
+
+		pack := pendingAck{Node: node,
+			StartTime:    GetNowInMillis(),
+			Callback:     node,
+			CallbackCode: code}
+
+		pending_acks.Lock()
+		pending_acks.m[key] = &pack
+		pending_acks.Unlock()
+
+		return transmitVerbGenericUDP(node, nil, VERB_NFPING, code)
 	}
 
-	node := member.node
-	code := member.code
-	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
-
-	pack := pendingAck{Node: node,
-		StartTime:    GetNowInMillis(),
-		Callback:     node,
-		CallbackCode: code}
-
-	pending_acks.Lock()
-	pending_acks.m[key] = &pack
-	pending_acks.Unlock()
-
-	return transmitVerbGenericUDP(node, nil, VERB_NFPING, code)
+	return nil
 }
 
 func receiveVerbPingUDP(msg message) error {
-	fmt.Println("GOT PING FROM", msg.getSender().Address(), msg.getSenderCode())
+	fmt.Println("GOT PING FROM", msg.sender.Address(), msg.senderCode)
 
-	return transmitVerbAckUDP(msg.getSender(), msg.getSenderCode())
+	return transmitVerbAckUDP(msg.sender, msg.senderCode)
 }
 
 func receiveVerbNonForwardPingUDP(msg message) error {
-	fmt.Println("GOT NFPING FROM", msg.getSender().Address(), msg.getSenderCode())
+	fmt.Println("GOT NFPING FROM", msg.sender.Address(), msg.senderCode)
 
-	return transmitVerbAckUDP(msg.getSender(), msg.getSenderCode())
+	return transmitVerbAckUDP(msg.sender, msg.senderCode)
 }
 
 func startTimeoutCheckLoop() {
@@ -240,7 +255,12 @@ func startTimeoutCheckLoop() {
 				// If a pending ack has a "downstream" field defined, then
 				// it's the result of a NFP and we don't forward it. If it
 				// isn't defined, we forward this request to a random host.
-				go doForwardOnTimeout(ack)
+
+				if ack.Callback == nil {
+					go doForwardOnTimeout(ack)
+				} else {
+					UpdateNodeStatus(ack.Callback, STATUS_DIED)
+				}
 
 				delete(pending_acks.m, k)
 			}
@@ -252,18 +272,22 @@ func startTimeoutCheckLoop() {
 }
 
 func doForwardOnTimeout(pack *pendingAck) {
-	timed_out_address := pack.Node.Address()
+	random_nodes := live_nodes.getRandomNodes(forwardCount(), this_host, pack.Node)
 
-	random_node := live_nodes.GetRandom(timed_out_address, this_host_address)
+	if len(random_nodes) == 0 {
+		fmt.Println(this_host.Address(), "Cannot forward ping request: no more nodes")
 
-	if random_node == nil {
-		fmt.Println(timed_out_address, "Cannot forward ping request: no more nodes")
+		UpdateNodeStatus(pack.Node, STATUS_DIED)
 	} else {
-		fmt.Printf("Requesting indirect ping of %s via %s\n",
-			pack.Node.Address(),
-			random_node.Address())
+		for i, n := range random_nodes {
+			fmt.Printf("(%d/%d) Requesting indirect ping of %s via %s\n",
+				i+1,
+				len(random_nodes),
+				pack.Node.Address(),
+				n.Address())
 
-		transmitVerbForwardUDP(random_node, pack.Node, current_heartbeat)
+			transmitVerbForwardUDP(n, pack.Node, current_heartbeat)
+		}
 	}
 }
 
@@ -280,13 +304,14 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 	}
 	defer c.Close()
 
-	msg := message{
-		_verb:       verb,
-		_sender:     this_host,
-		_senderCode: code}
+	msg := newMessage(verb, this_host, code)
 
 	if forward_to != nil {
-		msg.addMember(STATUS_FORWARD_TO, forward_to, code)
+		msg.addMember(forward_to, STATUS_FORWARD_TO, code)
+	}
+
+	for _, m := range getRandomUpdatedNodes(forwardCount()) {
+		msg.addMember(m, m.status, current_heartbeat)
 	}
 
 	_, err = c.Write(msg.encode())

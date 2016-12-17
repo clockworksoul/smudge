@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"strconv"
@@ -13,17 +14,16 @@ import (
 )
 
 // Currenty active nodes.
-var live_nodes NodeMap
+var live_nodes NodeMap = NodeMap{}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
 // rejoin the living.
-var dead_nodes []Node
+var dead_nodes []*Node = make([]*Node, 0, 64)
+
+var recently_updated []*Node = make([]*Node, 0, 64)
 
 func init() {
-	live_nodes = NodeMap{}
 	live_nodes.init()
-
-	dead_nodes = make([]Node, 0, 64)
 }
 
 func AddNodeByAddress(address string) {
@@ -50,29 +50,11 @@ func GetLocalIP() (net.IP, error) {
 	return ip, nil
 }
 
-// Loops through the nodes map and removes nodes that haven't been heard
-// from in > GetDeadMillis() milliseconds.
-func PruneDeadFromList() {
-	live_nodes.Lock()
-
-	for k, n := range live_nodes.nodes {
-		if n.Age() > uint32(GetDeadMillis()) {
-			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
-
-			delete(live_nodes.nodes, k)
-
-			dead_nodes = append(dead_nodes, *n)
-		}
-	}
-
-	live_nodes.Unlock()
-}
-
 // Returns a random dead node to the live_nodes map.
 func ResurrectDeadNode() {
 	if len(dead_nodes) == 1 {
 		live_nodes.Add(dead_nodes[0])
-		dead_nodes = make([]Node, 0, 64)
+		dead_nodes = make([]*Node, 0, 64)
 	} else if len(dead_nodes) > 1 {
 		i := rand.Intn(len(dead_nodes))
 		live_nodes.Add(dead_nodes[i])
@@ -84,68 +66,6 @@ func ResurrectDeadNode() {
 			dead_nodes = append(dead_nodes, dn)
 		}
 	}
-}
-
-// Returns a slice of Node[] of from 0 to len(nodes) nodes.
-// If size is < len(nodes), that many nodes are randomly chosen and
-// returned.
-func GetRandomNodes(size int) *[]Node {
-	emptySlice := make([]Node, 0, 0)
-
-	return getRandomNodes(size, &emptySlice)
-}
-
-// Returns a slice of Node[] of from 0 to len(nodes) nodes.
-// If size is < len(nodes), that many nodes are randomly chosen and
-// returned.
-func getRandomNodes(size int, exclude *[]Node) *[]Node {
-	excludeMap := make(map[string]*Node)
-	for _, n := range *exclude {
-		excludeMap[n.Address()] = &n
-	}
-
-	// If size is less than the entire set of nodes, shuffle and get a subset.
-	live_nodes.RLock()
-
-	if size <= 0 || size > live_nodes.Length() {
-		size = live_nodes.Length()
-	}
-
-	// Copy the complete nodes map into a slice
-	rnodes := make([]Node, 0, size)
-
-	var c int
-	for _, n := range live_nodes.nodes {
-		// If a node is not stale...
-		//
-		if n.Age() < uint32(GetStaleMillis()) {
-			// And isn't in the excludes map...
-			//
-			// if _, ok := nodes[n.Address()]; !ok {
-			// We append it
-			rnodes = append(rnodes, *n)
-			c++
-
-			if c >= size {
-				break
-				// }
-			}
-		}
-	}
-
-	live_nodes.RUnlock()
-
-	if size < len(rnodes) {
-		// Shuffle the slice
-		for i := range rnodes {
-			j := rand.Intn(i + 1)
-			rnodes[i], rnodes[j] = rnodes[j], rnodes[i]
-		}
-
-		rnodes = rnodes[0:size]
-	}
-
-	return &rnodes
 }
 
 func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
@@ -187,6 +107,92 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	}
 
 	return ip, port, err
+}
+
+// How many times a node should be broadcast after its status is updated.
+func announceCount() int {
+	var count int
+
+	if live_nodes.Length() > 0 {
+		logn := math.Log(float64(live_nodes.Length()))
+		mult := 2.5 * logn
+
+		count = int(mult)
+	}
+
+	return count
+}
+
+// The number of nodes to request a forward of when a PING times out.
+func forwardCount() int {
+	var count int
+
+	if live_nodes.Length() > 0 {
+		logn := math.Log(float64(live_nodes.Length()))
+		mult := 2.5 * logn
+
+		count = int(mult)
+	}
+
+	return count
+}
+
+func UpdateNodeStatus(n *Node, status byte) {
+	if n.status != status {
+		fmt.Printf("[%s] status is now %s\n", n.Address(), n.StatusString())
+
+		if status == STATUS_DIED {
+			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
+
+			live_nodes.Delete(n)
+
+			dead_nodes = append(dead_nodes, n)
+		}
+
+		n.Timestamp = GetNowInMillis()
+		n.status = status
+		n.broadcast_counter = byte(announceCount())
+		recently_updated = append(recently_updated, n)
+	}
+}
+
+func updateStatusesFromMessage(msg message) {
+	// First, if we don't know the sender, we add it.
+	if !live_nodes.Contains(msg.sender) {
+		live_nodes.Add(msg.sender)
+	}
+
+	UpdateNodeStatus(msg.sender, STATUS_ALIVE)
+
+	for _, m := range msg.members {
+		// The FORWARD_TO status isn't useful, so we actually ignore those
+		if m.status != STATUS_FORWARD_TO {
+			if !live_nodes.Contains(msg.sender) {
+				live_nodes.Add(msg.sender)
+			}
+
+			UpdateNodeStatus(msg.sender, m.status)
+		}
+	}
+}
+
+func getRandomUpdatedNodes(size int) []*Node {
+	// Make a copy of the recently update nodes slice
+	updated_copy := make([]*Node, len(recently_updated), len(recently_updated))
+	copy(updated_copy, recently_updated)
+
+	// Shuffle the copy
+	for i := range updated_copy {
+		j := rand.Intn(i + 1)
+		updated_copy[i], updated_copy[j] = updated_copy[j], updated_copy[i]
+	}
+
+	// Grab and return the top N
+	if size > len(updated_copy) {
+		size = len(updated_copy)
+	}
+
+	return updated_copy[:size]
 }
 
 // Returns a unique identifying non-deterministic string for this host.

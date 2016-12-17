@@ -11,27 +11,20 @@ const (
 	VERB_ACK     = byte(0x01)
 	VERB_NFPING  = byte(0x02)
 	VERB_FORWARD = byte(0x03)
-
-	STATUS_FORWARD_TO = byte(0x00)
-	STATUS_JOINED     = byte(0x01)
-	STATUS_LEFT       = byte(0x02)
-	STATUS_DIED       = byte(0x03)
-	STATUS_SUSPECTED  = byte(0x04)
-	STATUS_ALIVE      = byte(0x05)
 )
 
 type message struct {
-	_sender     *Node
-	_senderCode uint32
-	_verb       byte
-	_members    []*messageMember
+	sender     *Node
+	senderCode uint32
+	verb       byte
+	members    []*messageMember
 }
 
 func newMessage(verb byte, sender *Node, code uint32) message {
 	return message{
-		_sender:     sender,
-		_senderCode: code,
-		_verb:       verb,
+		sender:     sender,
+		senderCode: code,
+		verb:       verb,
 	}
 }
 
@@ -41,9 +34,9 @@ type messageMember struct {
 	status byte
 }
 
-func (m *message) addMember(status byte, n *Node, code uint32) {
-	if m._members == nil {
-		m._members = make([]*messageMember, 0, 32)
+func (m *message) addMember(n *Node, status byte, code uint32) {
+	if m.members == nil {
+		m.members = make([]*messageMember, 0, 32)
 	}
 
 	messageMember := messageMember{
@@ -51,39 +44,12 @@ func (m *message) addMember(status byte, n *Node, code uint32) {
 		node:   n,
 		status: status}
 
-	m._members = append(m._members, &messageMember)
-}
-
-func (m *message) setSender(n *Node) {
-	m._sender = n
-
-}
-
-func (m *message) getSender() *Node {
-	return m._sender
-}
-
-func (m *message) setSenderCode(n uint32) {
-	m._senderCode = n
-
-}
-
-func (m *message) getSenderCode() uint32 {
-	return m._senderCode
-}
-
-func (m *message) setVerb(v byte) {
-	m._verb = v
-
-}
-
-func (m *message) getVerb() byte {
-	return m._verb
+	m.members = append(m.members, &messageMember)
 }
 
 func (m *message) getForwardTo() *messageMember {
-	if len(m._members) > 0 && m._members[0].status == STATUS_FORWARD_TO {
-		return m._members[0]
+	if len(m.members) > 0 && m.members[0].status == STATUS_FORWARD_TO {
+		return m.members[0]
 	} else {
 		return nil
 	}
@@ -94,27 +60,29 @@ func (m *message) getForwardTo() *messageMember {
 // Bytes 00    Verb (one of {P|A|F|N})
 // Bytes 01-02 Sender response port
 // Bytes 03-06 Sender ID Code
+// ---
 // Bytes 07    Member status byte
 // Bytes 08-11 Member host IP
 // Bytes 12-13 Member host response port
 // Bytes 14-17 Member message code
 
 func (m *message) encode() []byte {
-	bytes := make([]byte, 17, 17)
+	size := 7 + (len(m.members) * 11)
+	bytes := make([]byte, size, size)
 
 	// Bytes 00    Verb (one of {P|A|F|N})
 	// Translation: the first character of the message verb
-	bytes[0] = m._verb
+	bytes[0] = m.verb
 
 	// Bytes 01-02 Sender response port
-	sport := m._sender.Port
+	sport := m.sender.Port
 	for i := uint16(0); i < 2; i++ {
 		sport >>= (i * 8)
 		bytes[i+1] = byte(sport)
 	}
 
 	// Bytes 03-06 ID Code
-	scode := m._senderCode
+	scode := m.senderCode
 	for i := uint32(0); i < 4; i++ {
 		scode >>= (i * 8)
 		bytes[i+3] = byte(scode)
@@ -123,13 +91,13 @@ func (m *message) encode() []byte {
 	// byte pointer
 	p := 7
 
-	// Each member data requires 10 bytes.
-	for _, member := range m._members {
+	// Each member data requires 11 bytes.
+	for _, member := range m.members {
 		mnode := member.node
 		mstatus := member.status
 		mcode := member.code
 
-		// Byte p + 0
+		// Byte p + 00
 		bytes[p] = mstatus
 
 		// Bytes (p + 01) to (p + 04): Originating host IP
@@ -173,7 +141,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	// Bytes 14-17 Member message code
 
 	// Bytes 00    Verb (one of {P|A|F|N})
-	var message_verb byte = bytes[0] & byte(0x03)
+	var messageverb byte = bytes[0] & byte(0x03)
 
 	// Bytes 01-02 Sender response port
 	var sender_port uint16
@@ -198,21 +166,28 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
-	m := newMessage(message_verb, sender, sender_code)
+	m := newMessage(messageverb, sender, sender_code)
 
 	// Byte 00 also contains the number of piggybacked messages
 	// in the leftmost 6 bits
 	// member_update_count := int(bytes[0] >> 2)
 
-	m._members = parseMembers(bytes[7:])
+	if len(bytes) > 7 {
+		m.members = parseMembers(bytes[7:])
+	}
 
 	return m, nil
 }
 
 func parseMembers(bytes []byte) []*messageMember {
+	// Bytes 00    Member status byte
+	// Bytes 01-04 Member host IP
+	// Bytes 05-06 Member host response port
+	// Bytes 07-10 Member message code
+
 	members := make([]*messageMember, 0, 1)
 
-	for b := 0; b < len(bytes); b += 10 {
+	for b := 0; b < len(bytes); b += 11 {
 		var mstatus byte
 		var mip net.IP
 		var mport uint16
@@ -220,25 +195,25 @@ func parseMembers(bytes []byte) []*messageMember {
 		var mnode *Node
 
 		// Byte 00 Member status byte
-		mstatus = bytes[0]
+		mstatus = bytes[b+0]
 
 		// Bytes 01-04 Originating host IP (FWD only)
-		if bytes[b+0] > 0 {
+		if bytes[b+1] > 0 {
 			mip = net.IPv4(
-				bytes[b+0],
 				bytes[b+1],
 				bytes[b+2],
-				bytes[b+3]).To4()
+				bytes[b+3],
+				bytes[b+4]).To4()
 		}
 
 		// Bytes 05-06 Originating host response port (FWD only)
-		for i := 5; i >= 4; i-- {
+		for i := 6; i >= 5; i-- {
 			mport <<= 8
 			mport |= uint16(bytes[b+i])
 		}
 
 		// Bytes 07-10 Originating message code (FWD only)
-		for i := 9; i >= 6; i-- {
+		for i := 10; i >= 7; i-- {
 			mcode <<= 8
 			mcode |= uint32(bytes[b+i])
 		}

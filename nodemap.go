@@ -21,7 +21,7 @@ func (m *NodeMap) init() {
 // Adds a node. Returns key, value.
 // Updates node heartbeat in the process.
 // This is the method called by all Add* functions.
-func (m *NodeMap) Add(node Node) (string, *Node, error) {
+func (m *NodeMap) Add(node *Node) (string, *Node, error) {
 	fmt.Println("Adding host:", node.Address())
 
 	key := node.Address()
@@ -30,10 +30,10 @@ func (m *NodeMap) Add(node Node) (string, *Node, error) {
 	node.Heartbeats = current_heartbeat
 
 	m.Lock()
-	m.nodes[node.Address()] = &node
+	m.nodes[node.Address()] = node
 	m.Unlock()
 
-	return key, &node, nil
+	return key, node, nil
 }
 
 // Given a node address ("ip:port" string), creates a new node instance
@@ -45,7 +45,7 @@ func (m *NodeMap) AddByAddress(address string) (string, *Node, error) {
 	if err == nil {
 		node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
 
-		return m.Add(node)
+		return m.Add(&node)
 	}
 
 	return "", nil, err
@@ -55,7 +55,29 @@ func (m *NodeMap) AddByAddress(address string) (string, *Node, error) {
 func (m *NodeMap) AddByIP(ip net.IP, port uint16) (string, *Node, error) {
 	node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
 
-	return m.Add(node)
+	return m.Add(&node)
+}
+
+func (m *NodeMap) Delete(node *Node) {
+	m.Lock()
+
+	delete(m.nodes, node.Address())
+
+	m.Unlock()
+}
+
+func (m *NodeMap) Contains(node *Node) bool {
+	return m.ContainsByAddress(node.Address())
+}
+
+func (m *NodeMap) ContainsByAddress(address string) bool {
+	m.RLock()
+
+	_, ok := m.nodes[address]
+
+	m.RUnlock()
+
+	return ok
 }
 
 // Returns a pointer to the requested Node
@@ -116,19 +138,10 @@ func (m *NodeMap) GetRandom(exclude_keys ...string) *Node {
 // Returns a slice of Node[] of from 0 to len(nodes) nodes.
 // If size is < len(nodes), that many nodes are randomly chosen and
 // returned.
-func (m *NodeMap) GetRandomSlice(size int) *[]Node {
-	emptySlice := make([]Node, 0, 0)
-
-	return getRandomNodes(size, &emptySlice)
-}
-
-// Returns a slice of Node[] of from 0 to len(nodes) nodes.
-// If size is < len(nodes), that many nodes are randomly chosen and
-// returned.
-func (m *NodeMap) getRandomNodes(size int, exclude *[]Node) *[]Node {
+func (m *NodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
 	excludeMap := make(map[string]*Node)
-	for _, n := range *exclude {
-		excludeMap[n.Address()] = &n
+	for _, n := range exclude {
+		excludeMap[n.Address()] = n
 	}
 
 	// If size is less than the entire set of nodes, shuffle and get a subset.
@@ -138,7 +151,7 @@ func (m *NodeMap) getRandomNodes(size int, exclude *[]Node) *[]Node {
 	}
 
 	// Copy the complete nodes map into a slice
-	rnodes := make([]Node, 0, size)
+	rnodes := make([]*Node, 0, size)
 
 	var c int
 	for _, n := range m.nodes {
@@ -149,12 +162,11 @@ func (m *NodeMap) getRandomNodes(size int, exclude *[]Node) *[]Node {
 			//
 			// if _, ok := nodes[n.Address()]; !ok {
 			// We append it
-			rnodes = append(rnodes, *n)
+			rnodes = append(rnodes, n)
 			c++
 
 			if c >= size {
 				break
-				// }
 			}
 		}
 	}
@@ -170,7 +182,7 @@ func (m *NodeMap) getRandomNodes(size int, exclude *[]Node) *[]Node {
 		rnodes = rnodes[0:size]
 	}
 
-	return &rnodes
+	return rnodes
 }
 
 func (m *NodeMap) Length() int {
@@ -180,10 +192,10 @@ func (m *NodeMap) Length() int {
 // Merges a slice of nodes into the nodes map.
 // Returns a slice of the nodes that were merged or updated (or ignored for
 // having exactly equal heartbeats)
-func (m *NodeMap) mergeNodeLists(msgNodes *[]Node) *[]Node {
-	mergedNodes := make([]Node, 0, 1)
+func (m *NodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
+	mergedNodes := make([]*Node, 0, 1)
 
-	for _, msgNode := range *msgNodes {
+	for _, msgNode := range msgNodes {
 		live_nodes.RLock()
 
 		existingNode, ok := m.nodes[msgNode.Address()]
@@ -195,7 +207,7 @@ func (m *NodeMap) mergeNodeLists(msgNodes *[]Node) *[]Node {
 			// but since we also don't want to retarnsmit it back to its source
 			// we add to the slice of 'merged' nodes.
 			if msgNode.Heartbeats >= existingNode.Heartbeats {
-				mergedNodes = append(mergedNodes, *existingNode)
+				mergedNodes = append(mergedNodes, existingNode)
 			}
 
 			if msgNode.Heartbeats > existingNode.Heartbeats {
@@ -219,7 +231,7 @@ func (m *NodeMap) mergeNodeLists(msgNodes *[]Node) *[]Node {
 		}
 	}
 
-	return &mergedNodes
+	return mergedNodes
 }
 
 func (m *NodeMap) Keys() []string {
