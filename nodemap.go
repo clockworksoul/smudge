@@ -8,20 +8,20 @@ import (
 	"sync"
 )
 
-type NodeMap struct {
+type nodeMap struct {
 	sync.RWMutex
 
 	nodes map[string]*Node
 }
 
-func (m *NodeMap) init() {
+func (m *nodeMap) init() {
 	m.nodes = make(map[string]*Node)
 }
 
 // Adds a node. Returns key, value.
 // Updates node heartbeat in the process.
 // This is the method called by all Add* functions.
-func (m *NodeMap) add(node *Node) (string, *Node, error) {
+func (m *nodeMap) add(node *Node) (string, *Node, error) {
 	fmt.Println("Adding host:", node.Address())
 
 	key := node.Address()
@@ -36,7 +36,7 @@ func (m *NodeMap) add(node *Node) (string, *Node, error) {
 	return key, node, nil
 }
 
-func (m *NodeMap) delete(node *Node) {
+func (m *nodeMap) delete(node *Node) {
 	m.Lock()
 
 	delete(m.nodes, node.Address())
@@ -44,11 +44,11 @@ func (m *NodeMap) delete(node *Node) {
 	m.Unlock()
 }
 
-func (m *NodeMap) contains(node *Node) bool {
+func (m *nodeMap) contains(node *Node) bool {
 	return m.containsByAddress(node.Address())
 }
 
-func (m *NodeMap) containsByAddress(address string) bool {
+func (m *nodeMap) containsByAddress(address string) bool {
 	m.RLock()
 
 	_, ok := m.nodes[address]
@@ -59,7 +59,7 @@ func (m *NodeMap) containsByAddress(address string) bool {
 }
 
 // Returns a pointer to the requested Node
-func (m *NodeMap) getByAddress(address string) *Node {
+func (m *nodeMap) getByAddress(address string) *Node {
 	m.RLock()
 	node, _ := m.nodes[address]
 	m.RUnlock()
@@ -69,7 +69,7 @@ func (m *NodeMap) getByAddress(address string) *Node {
 
 // Returns a pointer to the requested Node. If port is 0, is uses the value
 // of GetListenPort(). If the Node cannot be found, this returns nil.
-func (m *NodeMap) getByIP(ip net.IP, port uint16) *Node {
+func (m *nodeMap) getByIP(ip net.IP, port uint16) *Node {
 	if port == 0 {
 		port = uint16(GetListenPort())
 	}
@@ -81,7 +81,7 @@ func (m *NodeMap) getByIP(ip net.IP, port uint16) *Node {
 
 // Returns a single random node from the nodes map. If no nodes are available,
 // nil is returned.
-func (m *NodeMap) getRandom(exclude_keys ...string) *Node {
+func (m *nodeMap) getRandom(exclude_keys ...string) *Node {
 	var filtered []string
 
 	raw_keys := m.keys()
@@ -116,7 +116,7 @@ func (m *NodeMap) getRandom(exclude_keys ...string) *Node {
 // Returns a slice of Node[] of from 0 to len(nodes) nodes.
 // If size is < len(nodes), that many nodes are randomly chosen and
 // returned.
-func (m *NodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
+func (m *nodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
 	all_nodes := m.values()
 	// First, shuffle the all_nodes slice
 	for i := range all_nodes {
@@ -149,14 +149,14 @@ AppendLoop:
 	return filtered_nodes
 }
 
-func (m *NodeMap) length() int {
+func (m *nodeMap) length() int {
 	return len(m.nodes)
 }
 
 // Merges a slice of nodes into the nodes map.
 // Returns a slice of the nodes that were merged or updated (or ignored for
 // having exactly equal heartbeats)
-func (m *NodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
+func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 	mergedNodes := make([]*Node, 0, 1)
 
 	for _, msgNode := range msgNodes {
@@ -198,7 +198,7 @@ func (m *NodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 	return mergedNodes
 }
 
-func (m *NodeMap) keys() []string {
+func (m *nodeMap) keys() []string {
 	keys := make([]string, len(m.nodes))
 
 	live_nodes.RLock()
@@ -214,7 +214,7 @@ func (m *NodeMap) keys() []string {
 	return keys
 }
 
-func (m *NodeMap) values() []*Node {
+func (m *nodeMap) values() []*Node {
 	values := make([]*Node, len(m.nodes))
 
 	live_nodes.RLock()

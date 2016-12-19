@@ -11,7 +11,7 @@ import (
 )
 
 // Currenty active nodes.
-var live_nodes NodeMap = NodeMap{}
+var live_nodes nodeMap = nodeMap{}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
 // rejoin the living.
@@ -30,7 +30,6 @@ func init() {
 // Adds a node. Returns node, error.
 // Updates node heartbeat in the process, but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
-
 func AddNode(node *Node) (*Node, error) {
 	_, n, err := live_nodes.add(node)
 
