@@ -1,20 +1,22 @@
 package main
 
 import (
-	"flag"
 	"blackfish"
+	"flag"
+	"fmt"
 )
 
 func main() {
-	var node string
+	var node_address string
 	var heartbeat_millis int
 	var listen_port int
 	var max_nodes_to_ping int
 	var max_nodes_to_transmit int
 	var millis_to_dead int
 	var millis_to_stale int
+	var err error
 
-	flag.StringVar(&node, "node", "", "Initial node")
+	flag.StringVar(&node_address, "node", "", "Initial node")
 
 	flag.IntVar(&listen_port, "port",
 		int(blackfish.GetListenPort()),
@@ -52,9 +54,17 @@ func main() {
 	blackfish.SetDeadMillis(millis_to_dead)
 	blackfish.SetStaleMillis(millis_to_stale)
 
-	if node != "" {
-		blackfish.AddNodeByAddress(node)
+	if node_address != "" {
+		node, err := blackfish.CreateNodeByAddress(node_address)
+
+		if err == nil {
+			blackfish.AddNode(node)
+		}
 	}
 
-	blackfish.Begin()
+	if err == nil {
+		blackfish.Begin()
+	} else {
+		fmt.Println(err)
+	}
 }

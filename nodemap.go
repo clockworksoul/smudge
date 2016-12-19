@@ -21,7 +21,7 @@ func (m *NodeMap) init() {
 // Adds a node. Returns key, value.
 // Updates node heartbeat in the process.
 // This is the method called by all Add* functions.
-func (m *NodeMap) Add(node *Node) (string, *Node, error) {
+func (m *NodeMap) add(node *Node) (string, *Node, error) {
 	fmt.Println("Adding host:", node.Address())
 
 	key := node.Address()
@@ -36,29 +36,7 @@ func (m *NodeMap) Add(node *Node) (string, *Node, error) {
 	return key, node, nil
 }
 
-// Given a node address ("ip:port" string), creates a new node instance
-// and adds it to the map. If this address already exists in the map, this
-// function replaces the existing node.
-func (m *NodeMap) AddByAddress(address string) (string, *Node, error) {
-	ip, port, err := parseNodeAddress(address)
-
-	if err == nil {
-		node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
-
-		return m.Add(&node)
-	}
-
-	return "", nil, err
-}
-
-// Explicitly adds a node to this server's internal nodes list.
-func (m *NodeMap) AddByIP(ip net.IP, port uint16) (string, *Node, error) {
-	node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
-
-	return m.Add(&node)
-}
-
-func (m *NodeMap) Delete(node *Node) {
+func (m *NodeMap) delete(node *Node) {
 	m.Lock()
 
 	delete(m.nodes, node.Address())
@@ -66,11 +44,11 @@ func (m *NodeMap) Delete(node *Node) {
 	m.Unlock()
 }
 
-func (m *NodeMap) Contains(node *Node) bool {
-	return m.ContainsByAddress(node.Address())
+func (m *NodeMap) contains(node *Node) bool {
+	return m.containsByAddress(node.Address())
 }
 
-func (m *NodeMap) ContainsByAddress(address string) bool {
+func (m *NodeMap) containsByAddress(address string) bool {
 	m.RLock()
 
 	_, ok := m.nodes[address]
@@ -81,7 +59,7 @@ func (m *NodeMap) ContainsByAddress(address string) bool {
 }
 
 // Returns a pointer to the requested Node
-func (m *NodeMap) GetByAddress(address string) *Node {
+func (m *NodeMap) getByAddress(address string) *Node {
 	m.RLock()
 	node, _ := m.nodes[address]
 	m.RUnlock()
@@ -91,22 +69,22 @@ func (m *NodeMap) GetByAddress(address string) *Node {
 
 // Returns a pointer to the requested Node. If port is 0, is uses the value
 // of GetListenPort(). If the Node cannot be found, this returns nil.
-func (m *NodeMap) GetByIP(ip net.IP, port uint16) *Node {
+func (m *NodeMap) getByIP(ip net.IP, port uint16) *Node {
 	if port == 0 {
 		port = uint16(GetListenPort())
 	}
 
 	address := ip.String() + ":" + strconv.FormatInt(int64(port), 10)
 
-	return m.GetByAddress(address)
+	return m.getByAddress(address)
 }
 
 // Returns a single random node from the nodes map. If no nodes are available,
 // nil is returned.
-func (m *NodeMap) GetRandom(exclude_keys ...string) *Node {
+func (m *NodeMap) getRandom(exclude_keys ...string) *Node {
 	var filtered []string
 
-	raw_keys := m.Keys()
+	raw_keys := m.keys()
 
 	if len(exclude_keys) == 0 {
 		filtered = raw_keys
@@ -185,7 +163,7 @@ func (m *NodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
 	return rnodes
 }
 
-func (m *NodeMap) Length() int {
+func (m *NodeMap) length() int {
 	return len(m.nodes)
 }
 
@@ -225,7 +203,7 @@ func (m *NodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 		} else {
 			// We do not have this node in our list. Add it.
 			fmt.Println("New node identified:", msgNode)
-			m.Add(msgNode)
+			m.add(msgNode)
 
 			mergedNodes = append(mergedNodes, msgNode)
 		}
@@ -234,7 +212,7 @@ func (m *NodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 	return mergedNodes
 }
 
-func (m *NodeMap) Keys() []string {
+func (m *NodeMap) keys() []string {
 	keys := make([]string, len(m.nodes))
 
 	live_nodes.RLock()
@@ -250,7 +228,7 @@ func (m *NodeMap) Keys() []string {
 	return keys
 }
 
-func (m *NodeMap) Values() []*Node {
+func (m *NodeMap) values() []*Node {
 	values := make([]*Node, len(m.nodes))
 
 	live_nodes.RLock()

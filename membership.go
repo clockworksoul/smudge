@@ -19,7 +19,11 @@ var this_host_address string
 
 var this_host *Node
 
-var TIMEOUT_MILLIS uint32 = 150
+var TIMEOUT_MILLIS uint32 = 150 // TODO Calculate this as the 99th percentile?
+
+/******************************************************************************
+ * Exported functions (for public consumption)
+ *****************************************************************************/
 
 func Begin() {
 	// Add this host.
@@ -40,22 +44,22 @@ func Begin() {
 		fmt.Println("My host:", this_host)
 	}
 
-	for _, n := range live_nodes.Values() {
+	for _, n := range live_nodes.values() {
 		UpdateNodeStatus(n, STATUS_JOINED)
 	}
 
-	go ListenUDP(GetListenPort())
+	go listenUDP(GetListenPort())
 
 	go startTimeoutCheckLoop()
 
 	for {
 		current_heartbeat++
 
-		fmt.Printf("[%d] %d hosts\n", current_heartbeat, live_nodes.Length())
+		fmt.Printf("[%d] %d hosts\n", current_heartbeat, live_nodes.length())
 		// PruneDeadFromList()
 
 		// Ping one random node
-		node := live_nodes.GetRandom()
+		node := live_nodes.getRandom()
 		if node != nil {
 			PingNode(node)
 		} else {
@@ -73,37 +77,8 @@ func Begin() {
 	}
 }
 
-func ListenUDP(port int) error {
-	listenAddress, err := net.ResolveUDPAddr("udp", ":"+strconv.FormatInt(int64(port), 10))
-	if err != nil {
-		return err
-	}
-
-	/* Now listen at selected port */
-	c, err := net.ListenUDP("udp", listenAddress)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	for {
-		buf := make([]byte, 512)
-		n, addr, err := c.ReadFromUDP(buf)
-		if err != nil {
-			fmt.Println("UDP read error: ", err)
-		}
-
-		go func(addr *net.UDPAddr, msg []byte) {
-			err = receiveMessageUDP(addr, buf[0:n])
-			if err != nil {
-				fmt.Println(err)
-			}
-		}(addr, buf[0:n])
-	}
-}
-
 func PingAllNodes() {
-	fmt.Println(live_nodes.Length(), "nodes")
+	fmt.Println(live_nodes.length(), "nodes")
 
 	live_nodes.RLock()
 	for _, node := range live_nodes.nodes {
@@ -136,11 +111,49 @@ func PingNode(node *Node) error {
 	return err
 }
 
+/******************************************************************************
+ * Private functions (for internal use only)
+ *****************************************************************************/
+
+func listenUDP(port int) error {
+	listenAddress, err := net.ResolveUDPAddr("udp", ":"+strconv.FormatInt(int64(port), 10))
+	if err != nil {
+		return err
+	}
+
+	/* Now listen at selected port */
+	c, err := net.ListenUDP("udp", listenAddress)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	for {
+		buf := make([]byte, 512)
+		n, addr, err := c.ReadFromUDP(buf)
+		if err != nil {
+			fmt.Println("UDP read error: ", err)
+		}
+
+		go func(addr *net.UDPAddr, msg []byte) {
+			err = receiveMessageUDP(addr, buf[0:n])
+			if err != nil {
+				fmt.Println(err)
+			}
+		}(addr, buf[0:n])
+	}
+}
+
 func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 	msg, err := decodeMessage(addr, msg_bytes)
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("GOT %s FROM %v code=%d\n",
+		getVerbString(msg.verb),
+		msg.sender.Address(),
+		msg.senderCode)
 
 	updateStatusesFromMessage(msg)
 
@@ -174,8 +187,6 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 }
 
 func receiveVerbAckUDP(msg message) error {
-	fmt.Println("GOT ACK FROM", msg.sender.Address(), msg.senderCode)
-
 	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.senderCode), 10)
 
 	pending_acks.RLock()
@@ -207,8 +218,6 @@ func receiveVerbAckUDP(msg message) error {
 }
 
 func receiveVerbForwardUDP(msg message) error {
-	fmt.Println("GOT FORWARD FROM", msg.sender.Address(), msg.senderCode)
-
 	if len(msg.members) >= 0 &&
 		msg.members[0].status == STATUS_FORWARD_TO {
 		member := msg.members[0]
@@ -232,14 +241,10 @@ func receiveVerbForwardUDP(msg message) error {
 }
 
 func receiveVerbPingUDP(msg message) error {
-	fmt.Println("GOT PING FROM", msg.sender.Address(), msg.senderCode)
-
 	return transmitVerbAckUDP(msg.sender, msg.senderCode)
 }
 
 func receiveVerbNonForwardPingUDP(msg message) error {
-	fmt.Println("GOT NFPING FROM", msg.sender.Address(), msg.senderCode)
-
 	return transmitVerbAckUDP(msg.sender, msg.senderCode)
 }
 
@@ -310,7 +315,7 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 		msg.addMember(forward_to, STATUS_FORWARD_TO, code)
 	}
 
-	for _, m := range getRandomUpdatedNodes(forwardCount()) {
+	for _, m := range getRandomUpdatedNodes(forwardCount(), node) {
 		msg.addMember(m, m.status, current_heartbeat)
 	}
 

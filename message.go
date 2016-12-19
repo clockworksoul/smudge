@@ -20,14 +20,9 @@ type message struct {
 	members    []*messageMember
 }
 
-func newMessage(verb byte, sender *Node, code uint32) message {
-	return message{
-		sender:     sender,
-		senderCode: code,
-		verb:       verb,
-	}
-}
-
+// Represents a "member" of a message; i.e., a node that the sender knows
+// about, about which it wishes to notify the downstream recipient.
+//
 type messageMember struct {
 	code   uint32
 	node   *Node
@@ -45,14 +40,6 @@ func (m *message) addMember(n *Node, status byte, code uint32) {
 		status: status}
 
 	m.members = append(m.members, &messageMember)
-}
-
-func (m *message) getForwardTo() *messageMember {
-	if len(m.members) > 0 && m.members[0].status == STATUS_FORWARD_TO {
-		return m.members[0]
-	} else {
-		return nil
-	}
 }
 
 // Message contents (byte, content)
@@ -158,11 +145,12 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the IP and port, we can find the Node.
-	sender := live_nodes.GetByIP(addr.IP.To4(), sender_port)
+	sender := live_nodes.getByIP(addr.IP.To4(), sender_port)
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
-		_, sender, _ = live_nodes.AddByIP(addr.IP.To4(), sender_port)
+		node, _ := CreateNodeByIP(addr.IP.To4(), sender_port)
+		sender, _ = AddNode(node)
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
@@ -177,6 +165,44 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	return m, nil
+}
+
+// If members exist on this message, and that message has the "forward to"
+// status, this function returns it; otherwise it returns nil.
+//
+func (m *message) getForwardTo() *messageMember {
+	if len(m.members) > 0 && m.members[0].status == STATUS_FORWARD_TO {
+		return m.members[0]
+	} else {
+		return nil
+	}
+}
+
+func getVerbString(verb byte) string {
+	var str string = "*UNKNOWN*"
+
+	switch verb {
+	case VERB_PING:
+		str = "PING"
+	case VERB_ACK:
+		str = "ACK"
+	case VERB_FORWARD:
+		str = "FORWARD"
+	case VERB_NFPING:
+		str = "NFPING"
+	}
+
+	return str
+}
+
+// Convenience function. Creates a new message instance.
+//
+func newMessage(verb byte, sender *Node, code uint32) message {
+	return message{
+		sender:     sender,
+		senderCode: code,
+		verb:       verb,
+	}
 }
 
 func parseMembers(bytes []byte) []*messageMember {
@@ -220,11 +246,12 @@ func parseMembers(bytes []byte) []*messageMember {
 
 		if len(mip) > 0 {
 			// Find the sender by the address associated with the message actual
-			mnode = live_nodes.GetByIP(mip, mport)
+			mnode = live_nodes.getByIP(mip, mport)
 
 			// We don't know this node, so create a new one!
 			if mnode == nil {
-				_, mnode, _ = live_nodes.AddByIP(mip, mport)
+				mnode, _ := CreateNodeByIP(mip, mport)
+				mnode, _ = AddNode(mnode)
 			}
 		}
 

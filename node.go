@@ -12,7 +12,7 @@ const (
 	STATUS_FORWARD_TO = byte(0x02)
 	STATUS_LEFT       = byte(0x03)
 	STATUS_DIED       = byte(0x04)
-	STATUS_SUSPECTED  = byte(0x05)
+	STATUS_SUSPECTED  = byte(0x05) // NOT YET IMPLEMENTED
 )
 
 type Node struct {
