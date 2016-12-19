@@ -149,8 +149,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
-		node, _ := CreateNodeByIP(addr.IP.To4(), sender_port)
-		sender, _ = AddNode(node)
+		sender, _ = CreateNodeByIP(addr.IP.To4(), sender_port)
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage

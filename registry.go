@@ -30,7 +30,6 @@ func init() {
 // Adds a node. Returns node, error.
 // Updates node heartbeat in the process, but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
-// This is the method called by all Add* functions.
 //
 func AddNode(node *Node) (*Node, error) {
 	_, n, err := live_nodes.add(node)
@@ -91,8 +90,6 @@ func GetLocalIP() (net.IP, error) {
 //
 func UpdateNodeStatus(n *Node, status byte) {
 	if n.status != status {
-		fmt.Printf("[%s] status is now %s\n", n.Address(), n.StatusString())
-
 		if status == STATUS_DIED {
 			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
 
@@ -104,8 +101,27 @@ func UpdateNodeStatus(n *Node, status byte) {
 		n.Timestamp = GetNowInMillis()
 		n.status = status
 		n.broadcast_counter = byte(announceCount())
-		recently_updated = append(recently_updated, n)
+
+		fmt.Printf("[%s] status is now %s\n", n.Address(), n.StatusString())
+
+		// If this isn't in the recently updated list, add it.
+
+		contains := false
+
+	RULoop:
+		for _, ru := range recently_updated {
+			if ru.Address() == n.Address() {
+				contains = true
+				break RULoop
+			}
+		}
+
+		if !contains {
+			recently_updated = append(recently_updated, n)
+		}
 	}
+
+	fmt.Println("Update", n.Address(), "to status", n.StatusString())
 }
 
 /******************************************************************************
@@ -145,13 +161,27 @@ func forwardCount() int {
 }
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
+	// First, prune those with broadcast counters of zero from the list
+	//
+	pruned := make([]*Node, 0, len(recently_updated))
+	for _, n := range recently_updated {
+		if n.broadcast_counter > 0 {
+			pruned = append(pruned, n)
+		} else {
+			fmt.Println("Removing", n.Address(), "from recently updated list")
+		}
+	}
+	recently_updated = pruned
+
 	// Make a copy of the recently update nodes slice
+	//
 	updated_copy := make([]*Node, len(recently_updated), len(recently_updated))
 	copy(updated_copy, recently_updated)
 
-	// Exclude the exclusions.
+	// Exclude the exclusions
 	// TODO This is stupid inefficient. Use a set implementation of
 	// some kind instead.
+	//
 Outer:
 	for _, nout := range exclude {
 		for i, nin := range updated_copy {
@@ -170,12 +200,14 @@ Outer:
 	}
 
 	// Shuffle the copy
+	//
 	for i := range updated_copy {
 		j := rand.Intn(i + 1)
 		updated_copy[i], updated_copy[j] = updated_copy[j], updated_copy[i]
 	}
 
 	// Grab and return the top N
+	//
 	if size > len(updated_copy) {
 		size = len(updated_copy)
 	}
@@ -238,26 +270,6 @@ func resurrectDeadNode() {
 
 		for _, dn := range dsub {
 			dead_nodes = append(dead_nodes, dn)
-		}
-	}
-}
-
-func updateStatusesFromMessage(msg message) {
-	// First, if we don't know the sender, we add it.
-	if !live_nodes.contains(msg.sender) {
-		live_nodes.add(msg.sender)
-	}
-
-	UpdateNodeStatus(msg.sender, STATUS_ALIVE)
-
-	for _, m := range msg.members {
-		// The FORWARD_TO status isn't useful, so we actually ignore those
-		if m.status != STATUS_FORWARD_TO {
-			if !live_nodes.contains(msg.sender) {
-				live_nodes.add(msg.sender)
-			}
-
-			UpdateNodeStatus(msg.sender, m.status)
 		}
 	}
 }

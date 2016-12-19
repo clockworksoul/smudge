@@ -210,8 +210,6 @@ func receiveVerbAckUDP(msg message) error {
 
 		delete(pending_acks.m, key)
 		pending_acks.Unlock()
-	} else {
-		fmt.Println("**NO", key)
 	}
 
 	return nil
@@ -315,6 +313,7 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 		msg.addMember(forward_to, STATUS_FORWARD_TO, code)
 	}
 
+	// Add members for update
 	for _, m := range getRandomUpdatedNodes(forwardCount(), node) {
 		msg.addMember(m, m.status, current_heartbeat)
 	}
@@ -322,6 +321,11 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 	_, err = c.Write(msg.encode())
 	if err != nil {
 		return err
+	}
+
+	// Decrement the update counters on those nodes
+	for _, m := range msg.members {
+		m.node.broadcast_counter--
 	}
 
 	return nil
@@ -351,6 +355,27 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 	pending_acks.Unlock()
 
 	return transmitVerbGenericUDP(node, nil, VERB_PING, code)
+}
+
+func updateStatusesFromMessage(msg message) {
+	// First, if we don't know the sender, we add it.
+	if !live_nodes.contains(msg.sender) {
+		live_nodes.add(msg.sender)
+		UpdateNodeStatus(msg.sender, STATUS_ALIVE)
+	} else {
+		fmt.Println("Sender already known with status", msg.sender.StatusString())
+	}
+
+	for _, m := range msg.members {
+		// The FORWARD_TO status isn't useful here, so we ignore those
+		if m.status != STATUS_FORWARD_TO {
+			if !live_nodes.contains(msg.sender) {
+				live_nodes.add(msg.sender)
+			}
+
+			UpdateNodeStatus(msg.sender, m.status)
+		}
+	}
 }
 
 type pendingAck struct {
