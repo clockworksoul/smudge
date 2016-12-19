@@ -22,7 +22,6 @@ type message struct {
 
 // Represents a "member" of a message; i.e., a node that the sender knows
 // about, about which it wishes to notify the downstream recipient.
-//
 type messageMember struct {
 	code   uint32
 	node   *Node
@@ -168,7 +167,6 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 
 // If members exist on this message, and that message has the "forward to"
 // status, this function returns it; otherwise it returns nil.
-//
 func (m *message) getForwardTo() *messageMember {
 	if len(m.members) > 0 && m.members[0].status == STATUS_FORWARD_TO {
 		return m.members[0]
@@ -195,7 +193,6 @@ func getVerbString(verb byte) string {
 }
 
 // Convenience function. Creates a new message instance.
-//
 func newMessage(verb byte, sender *Node, code uint32) message {
 	return message{
 		sender:     sender,

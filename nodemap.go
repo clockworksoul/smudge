@@ -117,50 +117,36 @@ func (m *NodeMap) getRandom(exclude_keys ...string) *Node {
 // If size is < len(nodes), that many nodes are randomly chosen and
 // returned.
 func (m *NodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
-	excludeMap := make(map[string]*Node)
-	for _, n := range exclude {
-		excludeMap[n.Address()] = n
+	all_nodes := m.values()
+	// First, shuffle the all_nodes slice
+	for i := range all_nodes {
+		j := rand.Intn(i + 1)
+		all_nodes[i], all_nodes[j] = all_nodes[j], all_nodes[i]
 	}
 
-	// If size is less than the entire set of nodes, shuffle and get a subset.
-	live_nodes.RLock()
-	if size <= 0 || size > len(m.nodes) {
-		size = len(m.nodes)
-	}
+	// Copy the first size nodes that are not otherwise excluded
+	filtered_nodes := make([]*Node, 0, len(all_nodes))
 
-	// Copy the complete nodes map into a slice
-	rnodes := make([]*Node, 0, size)
-
-	var c int
-	for _, n := range m.nodes {
-		// If a node is not stale...
-		//
-		if n.Age() < uint32(GetStaleMillis()) {
-			// And isn't in the excludes map...
-			//
-			// if _, ok := nodes[n.Address()]; !ok {
-			// We append it
-			rnodes = append(rnodes, n)
-			c++
-
-			if c >= size {
-				break
+	var c int = 0
+AppendLoop:
+	for _, n := range all_nodes {
+		// Is the node in the excluded list?
+		for _, e := range exclude {
+			if n.Address() == e.Address() {
+				continue AppendLoop
 			}
 		}
-	}
-	live_nodes.RUnlock()
 
-	if size < len(rnodes) {
-		// Shuffle the slice
-		for i := range rnodes {
-			j := rand.Intn(i + 1)
-			rnodes[i], rnodes[j] = rnodes[j], rnodes[i]
+		// Now we can append it
+		filtered_nodes = append(filtered_nodes, n)
+		c++
+
+		if c >= size {
+			break AppendLoop
 		}
-
-		rnodes = rnodes[0:size]
 	}
 
-	return rnodes
+	return filtered_nodes
 }
 
 func (m *NodeMap) length() int {

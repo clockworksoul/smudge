@@ -30,7 +30,7 @@ func init() {
 // Adds a node. Returns node, error.
 // Updates node heartbeat in the process, but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
-//
+
 func AddNode(node *Node) (*Node, error) {
 	_, n, err := live_nodes.add(node)
 
@@ -43,7 +43,6 @@ func AddNode(node *Node) (*Node, error) {
 
 // Given a node address ("ip:port" string), creates and returns a new node
 // instance.
-//
 func CreateNodeByAddress(address string) (*Node, error) {
 	ip, port, err := parseNodeAddress(address)
 
@@ -58,13 +57,11 @@ func CreateNodeByAddress(address string) (*Node, error) {
 
 // Given a node address IP address and port, this function creates and returns
 // a new node instance.
-//
 func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
 	return &Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}, nil
 }
 
 // Queries the host interface to determine the local IPv4 of this machine.
-//
 func GetLocalIP() (net.IP, error) {
 	var ip net.IP
 
@@ -87,11 +84,10 @@ func GetLocalIP() (net.IP, error) {
 
 // Assigns a new status for the specified node, and adds that node to the
 // recently_updated list.
-//
 func UpdateNodeStatus(n *Node, status byte) {
 	if n.status != status {
 		if status == STATUS_DIED {
-			fmt.Printf("Node removed [%d > %d]: %v\n", n.Age(), GetDeadMillis(), n)
+			fmt.Printf("Node removed: %v\n", n)
 
 			live_nodes.delete(n)
 
@@ -162,7 +158,7 @@ func forwardCount() int {
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	// First, prune those with broadcast counters of zero from the list
-	//
+
 	pruned := make([]*Node, 0, len(recently_updated))
 	for _, n := range recently_updated {
 		if n.broadcast_counter > 0 {
@@ -174,14 +170,14 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	recently_updated = pruned
 
 	// Make a copy of the recently update nodes slice
-	//
+
 	updated_copy := make([]*Node, len(recently_updated), len(recently_updated))
 	copy(updated_copy, recently_updated)
 
 	// Exclude the exclusions
 	// TODO This is stupid inefficient. Use a set implementation of
 	// some kind instead.
-	//
+
 Outer:
 	for _, nout := range exclude {
 		for i, nin := range updated_copy {
@@ -200,14 +196,14 @@ Outer:
 	}
 
 	// Shuffle the copy
-	//
+
 	for i := range updated_copy {
 		j := rand.Intn(i + 1)
 		updated_copy[i], updated_copy[j] = updated_copy[j], updated_copy[i]
 	}
 
 	// Grab and return the top N
-	//
+
 	if size > len(updated_copy) {
 		size = len(updated_copy)
 	}

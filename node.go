@@ -15,6 +15,7 @@ const (
 	STATUS_SUSPECTED  = byte(0x05) // NOT YET IMPLEMENTED
 )
 
+// Represents a single node in the cluster.
 type Node struct {
 	IP                net.IP
 	Port              uint16
