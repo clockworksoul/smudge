@@ -17,13 +17,13 @@ const (
 
 // Represents a single node in the cluster.
 type Node struct {
-	IP                net.IP
-	Port              uint16
-	Heartbeats        uint32
-	Timestamp         uint32
-	address           string
-	status            byte
-	broadcast_counter byte
+	IP               net.IP
+	Port             uint16
+	Heartbeats       uint32
+	Timestamp        uint32
+	address          string
+	status           byte
+	broadcastCounter byte
 }
 
 func (n *Node) StatusString() string {

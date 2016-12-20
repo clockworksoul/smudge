@@ -8,16 +8,16 @@ import (
 	"time"
 )
 
-var current_heartbeat uint32
+var currentHeartbeat uint32
 
-var pending_acks = struct {
+var pendingAcks = struct {
 	sync.RWMutex
 	m map[string]*pendingAck
 }{m: make(map[string]*pendingAck)}
 
-var this_host_address string
+var thisHostAddress string
 
-var this_host *Node
+var thisHost *Node
 
 var TIMEOUT_MILLIS uint32 = 150 // TODO Calculate this as the 99th percentile?
 
@@ -34,32 +34,33 @@ func Begin() {
 		me := Node{
 			IP:         ip,
 			Port:       uint16(GetListenPort()),
-			Heartbeats: current_heartbeat,
+			Heartbeats: currentHeartbeat,
 			Timestamp:  GetNowInMillis()}
 
-		this_host_address = me.Address()
-		this_host = &me
+		thisHostAddress = me.Address()
+		thisHost = &me
 
-		fmt.Println("My host address:", this_host_address)
-		fmt.Println("My host:", this_host)
+		fmt.Println("My host address:", thisHostAddress)
+		fmt.Println("My host:", thisHost)
 	}
 
-	for _, n := range live_nodes.values() {
-		UpdateNodeStatus(n, STATUS_JOINED)
-	}
+	// Add this node's status. Don't update any other node's statuses: they'll
+	// report those back to us.
+	AddNode(thisHost)
+	UpdateNodeStatus(thisHost, STATUS_JOINED)
 
 	go listenUDP(GetListenPort())
 
 	go startTimeoutCheckLoop()
 
 	for {
-		current_heartbeat++
+		currentHeartbeat++
 
-		fmt.Printf("[%d] %d hosts\n", current_heartbeat, live_nodes.length())
+		fmt.Printf("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
 		// PruneDeadFromList()
 
 		// Ping one random node
-		node := live_nodes.getRandom()
+		node := liveNodes.getRandom(thisHostAddress)
 		if node != nil {
 			PingNode(node)
 		} else {
@@ -69,7 +70,7 @@ func Begin() {
 		// PingAllNodes()
 
 		// 1 heartbeat in 10, we resurrect a random dead node
-		// if current_heartbeat%25 == 0 {
+		// if currentHeartbeat%25 == 0 {
 		// 	ResurrectDeadNode()
 		// }
 
@@ -78,32 +79,32 @@ func Begin() {
 }
 
 func PingAllNodes() {
-	fmt.Println(live_nodes.length(), "nodes")
+	fmt.Println(liveNodes.length(), "nodes")
 
-	live_nodes.RLock()
-	for _, node := range live_nodes.nodes {
+	liveNodes.RLock()
+	for _, node := range liveNodes.nodes {
 		go PingNode(node)
 	}
-	live_nodes.RUnlock()
+	liveNodes.RUnlock()
 }
 
 // Initiates a ping of `count` nodes. Passing 0 is equivalent to calling
 // PingAllNodes().
 func PingNNodes(count int) {
-	rnodes := live_nodes.getRandomNodes(count)
+	rnodes := liveNodes.getRandomNodes(count)
 
 	// Loop over nodes and ping them
-	live_nodes.RLock()
+	liveNodes.RLock()
 	for _, node := range rnodes {
 		go PingNode(node)
 	}
-	live_nodes.RUnlock()
+	liveNodes.RUnlock()
 }
 
 // User-friendly method to explicitly ping a node. Calls the low-level
 // doPingNode(), and outputs a message if it fails.
 func PingNode(node *Node) error {
-	err := transmitVerbPingUDP(node, current_heartbeat)
+	err := transmitVerbPingUDP(node, currentHeartbeat)
 	if err != nil {
 		fmt.Println("Failure to ping", node, "->", err)
 	}
@@ -179,8 +180,8 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 	}
 
 	// Synchronize heartbeats
-	if msg.senderCode > current_heartbeat {
-		current_heartbeat = msg.senderCode - 1
+	if msg.senderCode > currentHeartbeat {
+		currentHeartbeat = msg.senderCode - 1
 	}
 
 	return nil
@@ -189,27 +190,27 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 func receiveVerbAckUDP(msg message) error {
 	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.senderCode), 10)
 
-	pending_acks.RLock()
-	_, ok := pending_acks.m[key]
-	pending_acks.RUnlock()
+	pendingAcks.RLock()
+	_, ok := pendingAcks.m[key]
+	pendingAcks.RUnlock()
 
 	if ok {
 		// TODO Keep statistics on response times
 
-		msg.sender.Heartbeats = current_heartbeat
+		msg.sender.Heartbeats = currentHeartbeat
 		msg.sender.Touch()
 
-		pending_acks.Lock()
+		pendingAcks.Lock()
 
 		// If this was a forwarded ping, respond to the callback node
-		if pack, ok := pending_acks.m[key]; ok {
+		if pack, ok := pendingAcks.m[key]; ok {
 			if pack.Callback != nil {
 				go transmitVerbAckUDP(pack.Callback, pack.CallbackCode)
 			}
 		}
 
-		delete(pending_acks.m, key)
-		pending_acks.Unlock()
+		delete(pendingAcks.m, key)
+		pendingAcks.Unlock()
 	}
 
 	return nil
@@ -228,9 +229,9 @@ func receiveVerbForwardUDP(msg message) error {
 			Callback:     node,
 			CallbackCode: code}
 
-		pending_acks.Lock()
-		pending_acks.m[key] = &pack
-		pending_acks.Unlock()
+		pendingAcks.Lock()
+		pendingAcks.m[key] = &pack
+		pendingAcks.Unlock()
 
 		return transmitVerbGenericUDP(node, nil, VERB_NFPING, code)
 	}
@@ -248,8 +249,8 @@ func receiveVerbNonForwardPingUDP(msg message) error {
 
 func startTimeoutCheckLoop() {
 	for {
-		pending_acks.Lock()
-		for k, ack := range pending_acks.m {
+		pendingAcks.Lock()
+		for k, ack := range pendingAcks.m {
 			elapsed := ack.Elapsed()
 
 			if elapsed > TIMEOUT_MILLIS {
@@ -265,20 +266,20 @@ func startTimeoutCheckLoop() {
 					UpdateNodeStatus(ack.Callback, STATUS_DIED)
 				}
 
-				delete(pending_acks.m, k)
+				delete(pendingAcks.m, k)
 			}
 		}
-		pending_acks.Unlock()
+		pendingAcks.Unlock()
 
 		time.Sleep(time.Millisecond * 1000)
 	}
 }
 
 func doForwardOnTimeout(pack *pendingAck) {
-	random_nodes := live_nodes.getRandomNodes(forwardCount(), this_host, pack.Node)
+	random_nodes := liveNodes.getRandomNodes(forwardCount(), thisHost, pack.Node)
 
 	if len(random_nodes) == 0 {
-		fmt.Println(this_host.Address(), "Cannot forward ping request: no more nodes")
+		fmt.Println(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
 		UpdateNodeStatus(pack.Node, STATUS_DIED)
 	} else {
@@ -289,7 +290,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 				pack.Node.Address(),
 				n.Address())
 
-			transmitVerbForwardUDP(n, pack.Node, current_heartbeat)
+			transmitVerbForwardUDP(n, pack.Node, currentHeartbeat)
 		}
 	}
 }
@@ -307,7 +308,7 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 	}
 	defer c.Close()
 
-	msg := newMessage(verb, this_host, code)
+	msg := newMessage(verb, thisHost, code)
 
 	if forward_to != nil {
 		msg.addMember(forward_to, STATUS_FORWARD_TO, code)
@@ -315,7 +316,7 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 
 	// Add members for update
 	for _, m := range getRandomUpdatedNodes(forwardCount(), node) {
-		msg.addMember(m, m.status, current_heartbeat)
+		msg.addMember(m, m.status, currentHeartbeat)
 	}
 
 	_, err = c.Write(msg.encode())
@@ -325,7 +326,7 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32
 
 	// Decrement the update counters on those nodes
 	for _, m := range msg.members {
-		m.node.broadcast_counter--
+		m.node.broadcastCounter--
 	}
 
 	return nil
@@ -335,9 +336,9 @@ func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 	pack := pendingAck{Node: node, StartTime: GetNowInMillis(), Callback: downstream}
 
-	pending_acks.Lock()
-	pending_acks.m[key] = &pack
-	pending_acks.Unlock()
+	pendingAcks.Lock()
+	pendingAcks.m[key] = &pack
+	pendingAcks.Unlock()
 
 	return transmitVerbGenericUDP(node, downstream, VERB_FORWARD, code)
 }
@@ -350,31 +351,40 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 	pack := pendingAck{Node: node, StartTime: GetNowInMillis()}
 
-	pending_acks.Lock()
-	pending_acks.m[key] = &pack
-	pending_acks.Unlock()
+	pendingAcks.Lock()
+	pendingAcks.m[key] = &pack
+	pendingAcks.Unlock()
 
 	return transmitVerbGenericUDP(node, nil, VERB_PING, code)
 }
 
 func updateStatusesFromMessage(msg message) {
-	// First, if we don't know the sender, we add it.
-	if !live_nodes.contains(msg.sender) {
-		live_nodes.add(msg.sender)
-		UpdateNodeStatus(msg.sender, STATUS_ALIVE)
-	} else {
-		fmt.Println("Sender already known with status", msg.sender.StatusString())
-	}
-
 	for _, m := range msg.members {
-		// The FORWARD_TO status isn't useful here, so we ignore those
+		switch m.status {
+		case STATUS_FORWARD_TO:
+			// The FORWARD_TO status isn't useful here, so we ignore those
+		case STATUS_DIED:
+			// The DIED status doesn't add nodes to the liveNodes map
+			UpdateNodeStatus(msg.sender, m.status)
+		default:
+			liveNodes.add(msg.sender)
+			UpdateNodeStatus(msg.sender, m.status)
+		}
+
 		if m.status != STATUS_FORWARD_TO {
-			if !live_nodes.contains(msg.sender) {
-				live_nodes.add(msg.sender)
+			if !liveNodes.contains(msg.sender) {
+				liveNodes.add(msg.sender)
 			}
 
 			UpdateNodeStatus(msg.sender, m.status)
 		}
+	}
+
+	// First, if we don't know the sender, we add it. Since it may have just
+	// rejoined the cluster from a dead state, we report its status as ALIVE.
+	if !liveNodes.contains(msg.sender) {
+		liveNodes.add(msg.sender)
+		UpdateNodeStatus(msg.sender, STATUS_ALIVE)
 	}
 }
 

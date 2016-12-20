@@ -27,7 +27,7 @@ func (m *nodeMap) add(node *Node) (string, *Node, error) {
 	key := node.Address()
 
 	node.Touch()
-	node.Heartbeats = current_heartbeat
+	node.Heartbeats = currentHeartbeat
 
 	m.Lock()
 	m.nodes[node.Address()] = node
@@ -160,11 +160,11 @@ func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 	mergedNodes := make([]*Node, 0, 1)
 
 	for _, msgNode := range msgNodes {
-		live_nodes.RLock()
+		m.RLock()
 
 		existingNode, ok := m.nodes[msgNode.Address()]
 
-		live_nodes.RUnlock()
+		m.RUnlock()
 
 		if ok {
 			// If the heartbeats are exactly equal, we don't merge the node,
@@ -201,7 +201,7 @@ func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 func (m *nodeMap) keys() []string {
 	keys := make([]string, len(m.nodes))
 
-	live_nodes.RLock()
+	m.RLock()
 
 	i := 0
 	for k := range m.nodes {
@@ -209,7 +209,7 @@ func (m *nodeMap) keys() []string {
 		i++
 	}
 
-	live_nodes.RUnlock()
+	m.RUnlock()
 
 	return keys
 }
@@ -217,7 +217,7 @@ func (m *nodeMap) keys() []string {
 func (m *nodeMap) values() []*Node {
 	values := make([]*Node, len(m.nodes))
 
-	live_nodes.RLock()
+	m.RLock()
 
 	i := 0
 	for _, v := range m.nodes {
@@ -225,7 +225,7 @@ func (m *nodeMap) values() []*Node {
 		i++
 	}
 
-	live_nodes.RUnlock()
+	m.RUnlock()
 
 	return values
 }

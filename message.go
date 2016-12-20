@@ -144,7 +144,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the IP and port, we can find the Node.
-	sender := live_nodes.getByIP(addr.IP.To4(), sender_port)
+	sender := liveNodes.getByIP(addr.IP.To4(), sender_port)
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
@@ -242,7 +242,7 @@ func parseMembers(bytes []byte) []*messageMember {
 
 		if len(mip) > 0 {
 			// Find the sender by the address associated with the message actual
-			mnode = live_nodes.getByIP(mip, mport)
+			mnode = liveNodes.getByIP(mip, mport)
 
 			// We don't know this node, so create a new one!
 			if mnode == nil {

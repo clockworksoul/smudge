@@ -11,16 +11,16 @@ import (
 )
 
 // Currenty active nodes.
-var live_nodes nodeMap = nodeMap{}
+var liveNodes nodeMap = nodeMap{}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
 // rejoin the living.
-var dead_nodes []*Node = make([]*Node, 0, 64)
+var deadNodes []*Node = make([]*Node, 0, 64)
 
 var recently_updated []*Node = make([]*Node, 0, 64)
 
 func init() {
-	live_nodes.init()
+	liveNodes.init()
 }
 
 /******************************************************************************
@@ -31,11 +31,7 @@ func init() {
 // Updates node heartbeat in the process, but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
-	_, n, err := live_nodes.add(node)
-
-	if node.Address() == this_host_address {
-		fmt.Println("Rejecting node addition: it's this node")
-	}
+	_, n, err := liveNodes.add(node)
 
 	return n, err
 }
@@ -88,14 +84,14 @@ func UpdateNodeStatus(n *Node, status byte) {
 		if status == STATUS_DIED {
 			fmt.Printf("Node removed: %v\n", n)
 
-			live_nodes.delete(n)
+			liveNodes.delete(n)
 
-			dead_nodes = append(dead_nodes, n)
+			deadNodes = append(deadNodes, n)
 		}
 
 		n.Timestamp = GetNowInMillis()
 		n.status = status
-		n.broadcast_counter = byte(announceCount())
+		n.broadcastCounter = byte(announceCount())
 
 		fmt.Printf("[%s] status is now %s\n", n.Address(), n.StatusString())
 
@@ -116,7 +112,7 @@ func UpdateNodeStatus(n *Node, status byte) {
 		}
 	}
 
-	fmt.Println("Update", n.Address(), "to status", n.StatusString())
+	fmt.Println("Updated", n.Address(), "to status", n.StatusString())
 }
 
 /******************************************************************************
@@ -128,8 +124,8 @@ func announceCount() int {
 	var count int
 	var lamda float64 = 2.5 // TODO Parameterize this magic number (lambda)
 
-	if live_nodes.length() > 0 {
-		logn := math.Log(float64(live_nodes.length()))
+	if liveNodes.length() > 0 {
+		logn := math.Log(float64(liveNodes.length()))
 
 		mult := lamda * logn
 
@@ -144,8 +140,8 @@ func forwardCount() int {
 	var count int
 	var lamda float64 = 2.5 // TODO Parameterize this magic number (lambda)
 
-	if live_nodes.length() > 0 {
-		logn := math.Log(float64(live_nodes.length()))
+	if liveNodes.length() > 0 {
+		logn := math.Log(float64(liveNodes.length()))
 
 		mult := lamda * logn
 
@@ -160,7 +156,7 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 
 	pruned := make([]*Node, 0, len(recently_updated))
 	for _, n := range recently_updated {
-		if n.broadcast_counter > 0 {
+		if n.broadcastCounter > 0 {
 			pruned = append(pruned, n)
 		} else {
 			fmt.Println("Removing", n.Address(), "from recently updated list")
@@ -251,20 +247,20 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	return ip, port, err
 }
 
-// Returns a random dead node to the live_nodes map.
+// Returns a random dead node to the liveNodes map.
 func resurrectDeadNode() {
-	if len(dead_nodes) == 1 {
-		live_nodes.add(dead_nodes[0])
-		dead_nodes = make([]*Node, 0, 64)
-	} else if len(dead_nodes) > 1 {
-		i := rand.Intn(len(dead_nodes))
-		live_nodes.add(dead_nodes[i])
+	if len(deadNodes) == 1 {
+		liveNodes.add(deadNodes[0])
+		deadNodes = make([]*Node, 0, 64)
+	} else if len(deadNodes) > 1 {
+		i := rand.Intn(len(deadNodes))
+		liveNodes.add(deadNodes[i])
 
-		dsub := dead_nodes[:i]
-		dead_nodes := dead_nodes[i+1:]
+		dsub := deadNodes[:i]
+		deadNodes := deadNodes[i+1:]
 
 		for _, dn := range dsub {
-			dead_nodes = append(dead_nodes, dn)
+			deadNodes = append(deadNodes, dn)
 		}
 	}
 }
