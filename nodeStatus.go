@@ -3,18 +3,18 @@ package blackfish
 type NodeStatus byte
 
 const (
-	STATUS_JOINED NodeStatus = iota
+	STATUS_NONE NodeStatus = iota
 	STATUS_ALIVE
-	STATUS_FORWARD_TO
+	STATUS_SUSPECTED
 	STATUS_LEFT
 	STATUS_DIED
-	STATUS_SUSPECTED
+	STATUS_FORWARD_TO
 )
 
 func (s NodeStatus) String() string {
 	switch s {
-	case STATUS_JOINED:
-		return "JOINED"
+	case STATUS_NONE:
+		return "NONE"
 	case STATUS_ALIVE:
 		return "ALIVE"
 	case STATUS_FORWARD_TO:

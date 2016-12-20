@@ -1,7 +1,6 @@
 package blackfish
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"sync"
@@ -29,7 +28,7 @@ func Begin() {
 	// Add this host.
 	ip, err := GetLocalIP()
 	if err != nil {
-		fmt.Println("Warning: Could not resolve host IP")
+		LogWarn("Warning: Could not resolve host IP")
 	} else {
 		me := Node{
 			ip:         ip,
@@ -40,14 +39,14 @@ func Begin() {
 		thisHostAddress = me.Address()
 		thisHost = &me
 
-		fmt.Println("My host address:", thisHostAddress)
-		fmt.Println("My host:", thisHost)
+		LogInfo("My host address:", thisHostAddress)
+		LogInfo("My host:", thisHost)
 	}
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
 	AddNode(thisHost)
-	UpdateNodeStatus(thisHost, STATUS_JOINED)
+	UpdateNodeStatus(thisHost, STATUS_ALIVE)
 
 	go listenUDP(GetListenPort())
 
@@ -56,15 +55,14 @@ func Begin() {
 	for {
 		currentHeartbeat++
 
-		fmt.Printf("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
-		// PruneDeadFromList()
+		LogfDebug("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
 
 		// Ping one random node
-		node := liveNodes.getRandom(thisHostAddress)
+		node := liveNodes.getRandomNode(thisHost)
 		if node != nil {
 			PingNode(node)
 		} else {
-			fmt.Println("No nodes to ping. :(")
+			LogInfo("No nodes to ping. So lonely. :(")
 		}
 
 		// PingAllNodes()
@@ -79,7 +77,7 @@ func Begin() {
 }
 
 func PingAllNodes() {
-	fmt.Println(liveNodes.length(), "nodes")
+	LogDebug(liveNodes.length(), "nodes")
 
 	liveNodes.RLock()
 	for _, node := range liveNodes.nodes {
@@ -106,7 +104,7 @@ func PingNNodes(count int) {
 func PingNode(node *Node) error {
 	err := transmitVerbPingUDP(node, currentHeartbeat)
 	if err != nil {
-		fmt.Println("Failure to ping", node, "->", err)
+		LogInfo("Failure to ping", node, "->", err)
 	}
 
 	return err
@@ -133,13 +131,13 @@ func listenUDP(port int) error {
 		buf := make([]byte, 512)
 		n, addr, err := c.ReadFromUDP(buf)
 		if err != nil {
-			fmt.Println("UDP read error: ", err)
+			LogError("UDP read error: ", err)
 		}
 
 		go func(addr *net.UDPAddr, msg []byte) {
 			err = receiveMessageUDP(addr, buf[0:n])
 			if err != nil {
-				fmt.Println(err)
+				LogInfo(err)
 			}
 		}(addr, buf[0:n])
 	}
@@ -151,7 +149,7 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 		return err
 	}
 
-	fmt.Printf("GOT %v FROM %v code=%d\n",
+	LogfTrace("Got %v from %v code=%d\n",
 		msg.verb,
 		msg.sender.Address(),
 		msg.senderCode)
@@ -219,6 +217,7 @@ func receiveVerbAckUDP(msg message) error {
 func receiveVerbForwardUDP(msg message) error {
 	if len(msg.members) >= 0 &&
 		msg.members[0].status == STATUS_FORWARD_TO {
+
 		member := msg.members[0]
 		node := member.node
 		code := member.code
@@ -226,8 +225,9 @@ func receiveVerbForwardUDP(msg message) error {
 
 		pack := pendingAck{Node: node,
 			StartTime:    GetNowInMillis(),
-			Callback:     node,
-			CallbackCode: code}
+			Callback:     msg.sender,
+			CallbackCode: code,
+			packType:     PACK_NFP}
 
 		pendingAcks.Lock()
 		pendingAcks.m[key] = &pack
@@ -250,20 +250,23 @@ func receiveVerbNonForwardPingUDP(msg message) error {
 func startTimeoutCheckLoop() {
 	for {
 		pendingAcks.Lock()
-		for k, ack := range pendingAcks.m {
-			elapsed := ack.Elapsed()
+		for k, pack := range pendingAcks.m {
+			elapsed := pack.Elapsed()
 
 			if elapsed > TIMEOUT_MILLIS {
-				fmt.Println(k, "timed out after", TIMEOUT_MILLIS, " milliseconds")
-
 				// If a pending ack has a "downstream" field defined, then
 				// it's the result of a NFP and we don't forward it. If it
 				// isn't defined, we forward this request to a random host.
 
-				if ack.Callback == nil {
-					go doForwardOnTimeout(ack)
-				} else {
-					UpdateNodeStatus(ack.Callback, STATUS_DIED)
+				switch pack.packType {
+				case PACK_PING:
+					go doForwardOnTimeout(pack)
+				case PACK_FORWARD:
+					LogInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
+					UpdateNodeStatus(pack.Callback, STATUS_DIED)
+				case PACK_NFP:
+					LogInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
+					UpdateNodeStatus(pack.Node, STATUS_DIED)
 				}
 
 				delete(pendingAcks.m, k)
@@ -271,7 +274,7 @@ func startTimeoutCheckLoop() {
 		}
 		pendingAcks.Unlock()
 
-		time.Sleep(time.Millisecond * 1000)
+		time.Sleep(time.Millisecond * 500)
 	}
 }
 
@@ -279,12 +282,12 @@ func doForwardOnTimeout(pack *pendingAck) {
 	random_nodes := liveNodes.getRandomNodes(forwardCount(), thisHost, pack.Node)
 
 	if len(random_nodes) == 0 {
-		fmt.Println(thisHost.Address(), "Cannot forward ping request: no more nodes")
+		LogInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
 		UpdateNodeStatus(pack.Node, STATUS_DIED)
 	} else {
 		for i, n := range random_nodes {
-			fmt.Printf("(%d/%d) Requesting indirect ping of %s via %s\n",
+			LogfInfo("(%d/%d) Requesting indirect ping of %s via %s\n",
 				i+1,
 				len(random_nodes),
 				pack.Node.Address(),
@@ -329,12 +332,19 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb messageVerb, code
 		m.node.broadcastCounter--
 	}
 
+	LogfTrace("Sent %v to %v\n", verb, node.Address())
+
 	return nil
 }
 
 func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
-	pack := pendingAck{Node: node, StartTime: GetNowInMillis(), Callback: downstream}
+
+	pack := pendingAck{
+		Node:      node,
+		StartTime: GetNowInMillis(),
+		Callback:  downstream,
+		packType:  PACK_FORWARD}
 
 	pendingAcks.Lock()
 	pendingAcks.m[key] = &pack
@@ -349,7 +359,10 @@ func transmitVerbAckUDP(node *Node, code uint32) error {
 
 func transmitVerbPingUDP(node *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
-	pack := pendingAck{Node: node, StartTime: GetNowInMillis()}
+	pack := pendingAck{
+		Node:      node,
+		StartTime: GetNowInMillis(),
+		packType:  PACK_PING}
 
 	pendingAcks.Lock()
 	pendingAcks.m[key] = &pack
@@ -359,24 +372,22 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 }
 
 func updateStatusesFromMessage(msg message) {
-	for _, m := range msg.members {
+	for i, m := range msg.members {
+		LogfDebug("Member update (%d/%d): %s is now status %s\n",
+			i+1,
+			len(msg.members),
+			m.node.Address(),
+			m.status)
+
 		switch m.status {
 		case STATUS_FORWARD_TO:
 			// The FORWARD_TO status isn't useful here, so we ignore those
 		case STATUS_DIED:
 			// The DIED status doesn't add nodes to the liveNodes map
-			UpdateNodeStatus(msg.sender, m.status)
+			UpdateNodeStatus(m.node, m.status)
 		default:
-			liveNodes.add(msg.sender)
-			UpdateNodeStatus(msg.sender, m.status)
-		}
-
-		if m.status != STATUS_FORWARD_TO {
-			if !liveNodes.contains(msg.sender) {
-				liveNodes.add(msg.sender)
-			}
-
-			UpdateNodeStatus(msg.sender, m.status)
+			liveNodes.add(m.node)
+			UpdateNodeStatus(m.node, m.status)
 		}
 	}
 
@@ -388,11 +399,33 @@ func updateStatusesFromMessage(msg message) {
 	}
 }
 
+type pendingAckType byte
+
+const (
+	PACK_PING pendingAckType = iota
+	PACK_FORWARD
+	PACK_NFP
+)
+
+func (p pendingAckType) String() string {
+	switch p {
+	case PACK_PING:
+		return "PING"
+	case PACK_FORWARD:
+		return "FWD"
+	case PACK_NFP:
+		return "NFP"
+	default:
+		return "UNDEFINED"
+	}
+}
+
 type pendingAck struct {
 	StartTime    uint32
 	Node         *Node
 	Callback     *Node
 	CallbackCode uint32
+	packType     pendingAckType
 }
 
 func (a *pendingAck) Elapsed() uint32 {

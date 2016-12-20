@@ -1,7 +1,6 @@
 package blackfish
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
@@ -22,7 +21,7 @@ func (m *nodeMap) init() {
 // Updates node heartbeat in the process.
 // This is the method called by all Add* functions.
 func (m *nodeMap) add(node *Node) (string, *Node, error) {
-	fmt.Println("Adding host:", node.Address())
+	LogInfo("Adding host:", node.Address())
 
 	key := node.Address()
 
@@ -81,21 +80,21 @@ func (m *nodeMap) getByIP(ip net.IP, port uint16) *Node {
 
 // Returns a single random node from the nodes map. If no nodes are available,
 // nil is returned.
-func (m *nodeMap) getRandom(exclude_keys ...string) *Node {
+func (m *nodeMap) getRandomNode(exclude ...*Node) *Node {
 	var filtered []string
 
-	raw_keys := m.keys()
+	rawKeys := m.keys()
 
-	if len(exclude_keys) == 0 {
-		filtered = raw_keys
+	if len(exclude) == 0 {
+		filtered = rawKeys
 	} else {
-		filtered = make([]string, 0, len(raw_keys))
+		filtered = make([]string, 0, len(rawKeys))
 
 		// Build a filtered list excluding the excluded keys
 	Outer:
-		for _, rk := range raw_keys {
-			for _, ex := range exclude_keys {
-				if rk == ex {
+		for _, rk := range rawKeys {
+			for _, ex := range exclude {
+				if rk == ex.Address() {
 					continue Outer
 				}
 			}
@@ -117,36 +116,36 @@ func (m *nodeMap) getRandom(exclude_keys ...string) *Node {
 // If size is < len(nodes), that many nodes are randomly chosen and
 // returned.
 func (m *nodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
-	all_nodes := m.values()
-	// First, shuffle the all_nodes slice
-	for i := range all_nodes {
+	allNodes := m.values()
+	// First, shuffle the allNodes slice
+	for i := range allNodes {
 		j := rand.Intn(i + 1)
-		all_nodes[i], all_nodes[j] = all_nodes[j], all_nodes[i]
+		allNodes[i], allNodes[j] = allNodes[j], allNodes[i]
 	}
 
 	// Copy the first size nodes that are not otherwise excluded
-	filtered_nodes := make([]*Node, 0, len(all_nodes))
+	filtered := make([]*Node, 0, len(allNodes))
 
 	var c int = 0
-AppendLoop:
-	for _, n := range all_nodes {
+Outer:
+	for _, n := range allNodes {
 		// Is the node in the excluded list?
 		for _, e := range exclude {
 			if n.Address() == e.Address() {
-				continue AppendLoop
+				continue Outer
 			}
 		}
 
 		// Now we can append it
-		filtered_nodes = append(filtered_nodes, n)
+		filtered = append(filtered, n)
 		c++
 
 		if c >= size {
-			break AppendLoop
+			break Outer
 		}
 	}
 
-	return filtered_nodes
+	return filtered
 }
 
 func (m *nodeMap) length() int {
@@ -180,15 +179,15 @@ func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 				existingNode.heartbeats = msgNode.heartbeats
 				existingNode.Touch()
 
-				fmt.Printf("[%s] Node exists; is now: %v\n",
+				LogfInfo("[%s] Node exists; is now: %v\n",
 					msgNode.Address(), existingNode)
 			} else {
-				fmt.Printf("[%s] Node exists but heartbeat is older; ignoring\n",
+				LogfInfo("[%s] Node exists but heartbeat is older; ignoring\n",
 					msgNode.Address())
 			}
 		} else {
 			// We do not have this node in our list. Add it.
-			fmt.Println("New node identified:", msgNode)
+			LogInfo("New node identified:", msgNode)
 			m.add(msgNode)
 
 			mergedNodes = append(mergedNodes, msgNode)

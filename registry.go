@@ -2,7 +2,6 @@ package blackfish
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"math/rand"
 	"net"
@@ -81,21 +80,21 @@ func GetLocalIP() (net.IP, error) {
 // recently_updated list.
 func UpdateNodeStatus(n *Node, status NodeStatus) {
 	if n.status != status {
-		if status == STATUS_DIED {
-			fmt.Printf("Node removed: %v\n", n)
+		n.timestamp = GetNowInMillis()
+		n.status = status
+		n.broadcastCounter = byte(announceCount())
+
+		LogfInfo("%s status is now %v\n", n.Address(), n.status)
+
+		// If this isn't in the recently updated list, add it.
+
+		if n.status == STATUS_DIED {
+			LogfInfo("Node removed: %s\n", n.Address())
 
 			liveNodes.delete(n)
 
 			deadNodes = append(deadNodes, n)
 		}
-
-		n.timestamp = GetNowInMillis()
-		n.status = status
-		n.broadcastCounter = byte(announceCount())
-
-		fmt.Printf("[%s] status is now %v\n", n.Address(), n.status)
-
-		// If this isn't in the recently updated list, add it.
 
 		contains := false
 
@@ -110,8 +109,6 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 			recently_updated = append(recently_updated, n)
 		}
 	}
-
-	fmt.Println("Updated", n.Address(), "to status", n.status)
 }
 
 /******************************************************************************
@@ -158,7 +155,7 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 		if n.broadcastCounter > 0 {
 			pruned = append(pruned, n)
 		} else {
-			fmt.Println("Removing", n.Address(), "from recently updated list")
+			LogInfo("Removing", n.Address(), "from recently updated list")
 		}
 	}
 	recently_updated = pruned

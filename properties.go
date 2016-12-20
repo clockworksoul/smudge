@@ -1,7 +1,6 @@
 package blackfish
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 )
@@ -67,7 +66,7 @@ func getIntVar(key string, defval int) int {
 		i, err := strconv.Atoi(key)
 
 		if err != nil {
-			fmt.Printf("WARNING! Failed to parse env property %s: %s is not "+
+			LogfWarn("Failed to parse env property %s: %s is not "+
 				"an integer. Using default.\n", key, valueString)
 		} else {
 			valueInt = i
