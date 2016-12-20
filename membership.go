@@ -151,8 +151,8 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 		return err
 	}
 
-	fmt.Printf("GOT %s FROM %v code=%d\n",
-		getVerbString(msg.verb),
+	fmt.Printf("GOT %v FROM %v code=%d\n",
+		msg.verb,
 		msg.sender.Address(),
 		msg.senderCode)
 
@@ -295,7 +295,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 	}
 }
 
-func transmitVerbGenericUDP(node *Node, forward_to *Node, verb byte, code uint32) error {
+func transmitVerbGenericUDP(node *Node, forward_to *Node, verb messageVerb, code uint32) error {
 	// Transmit the ACK
 	remote_addr, err := net.ResolveUDPAddr("udp", node.Address())
 	if err != nil {

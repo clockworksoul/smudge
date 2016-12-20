@@ -79,7 +79,7 @@ func GetLocalIP() (net.IP, error) {
 
 // Assigns a new status for the specified node, and adds that node to the
 // recently_updated list.
-func UpdateNodeStatus(n *Node, status byte) {
+func UpdateNodeStatus(n *Node, status nodeStatus) {
 	if n.status != status {
 		if status == STATUS_DIED {
 			fmt.Printf("Node removed: %v\n", n)
@@ -93,7 +93,7 @@ func UpdateNodeStatus(n *Node, status byte) {
 		n.status = status
 		n.broadcastCounter = byte(announceCount())
 
-		fmt.Printf("[%s] status is now %s\n", n.Address(), n.StatusString())
+		fmt.Printf("[%s] status is now %v\n", n.Address(), n.status)
 
 		// If this isn't in the recently updated list, add it.
 
@@ -112,7 +112,7 @@ func UpdateNodeStatus(n *Node, status byte) {
 		}
 	}
 
-	fmt.Println("Updated", n.Address(), "to status", n.StatusString())
+	fmt.Println("Updated", n.Address(), "to status", n.status)
 }
 
 /******************************************************************************

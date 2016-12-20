@@ -4,19 +4,10 @@ import (
 	"net"
 )
 
-// Yo dawg. I herd you like bitwise arithmetic.
-
-const (
-	VERB_PING    = byte(0x00)
-	VERB_ACK     = byte(0x01)
-	VERB_NFPING  = byte(0x02)
-	VERB_FORWARD = byte(0x03)
-)
-
 type message struct {
 	sender     *Node
 	senderCode uint32
-	verb       byte
+	verb       messageVerb
 	members    []*messageMember
 }
 
@@ -25,10 +16,10 @@ type message struct {
 type messageMember struct {
 	code   uint32
 	node   *Node
-	status byte
+	status nodeStatus
 }
 
-func (m *message) addMember(n *Node, status byte, code uint32) {
+func (m *message) addMember(n *Node, status nodeStatus, code uint32) {
 	if m.members == nil {
 		m.members = make([]*messageMember, 0, 32)
 	}
@@ -58,7 +49,7 @@ func (m *message) encode() []byte {
 
 	// Bytes 00    Verb (one of {P|A|F|N})
 	// Translation: the first character of the message verb
-	bytes[0] = m.verb
+	bytes[0] = byte(m.verb)
 
 	// Bytes 01-02 Sender response port
 	sport := m.sender.Port
@@ -84,7 +75,7 @@ func (m *message) encode() []byte {
 		mcode := member.code
 
 		// Byte p + 00
-		bytes[p] = mstatus
+		bytes[p] = byte(mstatus)
 
 		// Bytes (p + 01) to (p + 04): Originating host IP
 		ipb := mnode.IP
@@ -127,7 +118,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	// Bytes 14-17 Member message code
 
 	// Bytes 00    Verb (one of {P|A|F|N})
-	var messageverb byte = bytes[0] & byte(0x03)
+	var verb messageVerb = messageVerb(bytes[0] & byte(0x03))
 
 	// Bytes 01-02 Sender response port
 	var sender_port uint16
@@ -152,7 +143,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
-	m := newMessage(messageverb, sender, sender_code)
+	m := newMessage(verb, sender, sender_code)
 
 	// Byte 00 also contains the number of piggybacked messages
 	// in the leftmost 6 bits
@@ -175,25 +166,8 @@ func (m *message) getForwardTo() *messageMember {
 	}
 }
 
-func getVerbString(verb byte) string {
-	var str string = "*UNKNOWN*"
-
-	switch verb {
-	case VERB_PING:
-		str = "PING"
-	case VERB_ACK:
-		str = "ACK"
-	case VERB_FORWARD:
-		str = "FORWARD"
-	case VERB_NFPING:
-		str = "NFPING"
-	}
-
-	return str
-}
-
 // Convenience function. Creates a new message instance.
-func newMessage(verb byte, sender *Node, code uint32) message {
+func newMessage(verb messageVerb, sender *Node, code uint32) message {
 	return message{
 		sender:     sender,
 		senderCode: code,
@@ -210,14 +184,14 @@ func parseMembers(bytes []byte) []*messageMember {
 	members := make([]*messageMember, 0, 1)
 
 	for b := 0; b < len(bytes); b += 11 {
-		var mstatus byte
+		var mstatus nodeStatus
 		var mip net.IP
 		var mport uint16
 		var mcode uint32
 		var mnode *Node
 
 		// Byte 00 Member status byte
-		mstatus = bytes[b+0]
+		mstatus = nodeStatus(bytes[b+0])
 
 		// Bytes 01-04 Originating host IP (FWD only)
 		if bytes[b+1] > 0 {
