@@ -84,12 +84,12 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		n.status = status
 		n.broadcastCounter = byte(announceCount())
 
-		LogfInfo("%s status is now %v\n", n.Address(), n.status)
+		logfInfo("%s status is now %v\n", n.Address(), n.status)
 
 		// If this isn't in the recently updated list, add it.
 
 		if n.status == STATUS_DIED {
-			LogfInfo("Node removed: %s\n", n.Address())
+			logfInfo("Node removed: %s\n", n.Address())
 
 			liveNodes.delete(n)
 
@@ -155,7 +155,7 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 		if n.broadcastCounter > 0 {
 			pruned = append(pruned, n)
 		} else {
-			LogInfo("Removing", n.Address(), "from recently updated list")
+			logInfo("Removing", n.Address(), "from recently updated list")
 		}
 	}
 	recently_updated = pruned

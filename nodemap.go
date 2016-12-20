@@ -21,7 +21,7 @@ func (m *nodeMap) init() {
 // Updates node heartbeat in the process.
 // This is the method called by all Add* functions.
 func (m *nodeMap) add(node *Node) (string, *Node, error) {
-	LogInfo("Adding host:", node.Address())
+	logInfo("Adding host:", node.Address())
 
 	key := node.Address()
 
@@ -179,15 +179,15 @@ func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 				existingNode.heartbeats = msgNode.heartbeats
 				existingNode.Touch()
 
-				LogfInfo("[%s] Node exists; is now: %v\n",
+				logfInfo("[%s] Node exists; is now: %v\n",
 					msgNode.Address(), existingNode)
 			} else {
-				LogfInfo("[%s] Node exists but heartbeat is older; ignoring\n",
+				logfInfo("[%s] Node exists but heartbeat is older; ignoring\n",
 					msgNode.Address())
 			}
 		} else {
 			// We do not have this node in our list. Add it.
-			LogInfo("New node identified:", msgNode)
+			logInfo("New node identified:", msgNode)
 			m.add(msgNode)
 
 			mergedNodes = append(mergedNodes, msgNode)

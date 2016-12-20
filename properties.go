@@ -66,7 +66,7 @@ func getIntVar(key string, defval int) int {
 		i, err := strconv.Atoi(key)
 
 		if err != nil {
-			LogfWarn("Failed to parse env property %s: %s is not "+
+			logfWarn("Failed to parse env property %s: %s is not "+
 				"an integer. Using default.\n", key, valueString)
 		} else {
 			valueInt = i

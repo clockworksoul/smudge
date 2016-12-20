@@ -28,7 +28,7 @@ func Begin() {
 	// Add this host.
 	ip, err := GetLocalIP()
 	if err != nil {
-		LogWarn("Warning: Could not resolve host IP")
+		logWarn("Warning: Could not resolve host IP")
 	} else {
 		me := Node{
 			ip:         ip,
@@ -39,8 +39,8 @@ func Begin() {
 		thisHostAddress = me.Address()
 		thisHost = &me
 
-		LogInfo("My host address:", thisHostAddress)
-		LogInfo("My host:", thisHost)
+		logInfo("My host address:", thisHostAddress)
+		logInfo("My host:", thisHost)
 	}
 
 	// Add this node's status. Don't update any other node's statuses: they'll
@@ -55,14 +55,14 @@ func Begin() {
 	for {
 		currentHeartbeat++
 
-		LogfDebug("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
+		logfDebug("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
 
 		// Ping one random node
 		node := liveNodes.getRandomNode(thisHost)
 		if node != nil {
 			PingNode(node)
 		} else {
-			LogInfo("No nodes to ping. So lonely. :(")
+			logInfo("No nodes to ping. So lonely. :(")
 		}
 
 		// PingAllNodes()
@@ -77,7 +77,7 @@ func Begin() {
 }
 
 func PingAllNodes() {
-	LogDebug(liveNodes.length(), "nodes")
+	logDebug(liveNodes.length(), "nodes")
 
 	liveNodes.RLock()
 	for _, node := range liveNodes.nodes {
@@ -104,7 +104,7 @@ func PingNNodes(count int) {
 func PingNode(node *Node) error {
 	err := transmitVerbPingUDP(node, currentHeartbeat)
 	if err != nil {
-		LogInfo("Failure to ping", node, "->", err)
+		logInfo("Failure to ping", node, "->", err)
 	}
 
 	return err
@@ -131,13 +131,13 @@ func listenUDP(port int) error {
 		buf := make([]byte, 512)
 		n, addr, err := c.ReadFromUDP(buf)
 		if err != nil {
-			LogError("UDP read error: ", err)
+			logError("UDP read error: ", err)
 		}
 
 		go func(addr *net.UDPAddr, msg []byte) {
 			err = receiveMessageUDP(addr, buf[0:n])
 			if err != nil {
-				LogInfo(err)
+				logInfo(err)
 			}
 		}(addr, buf[0:n])
 	}
@@ -149,7 +149,7 @@ func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
 		return err
 	}
 
-	LogfTrace("Got %v from %v code=%d\n",
+	logfTrace("Got %v from %v code=%d\n",
 		msg.verb,
 		msg.sender.Address(),
 		msg.senderCode)
@@ -262,10 +262,10 @@ func startTimeoutCheckLoop() {
 				case PACK_PING:
 					go doForwardOnTimeout(pack)
 				case PACK_FORWARD:
-					LogInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
+					logInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
 					UpdateNodeStatus(pack.Callback, STATUS_DIED)
 				case PACK_NFP:
-					LogInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
+					logInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
 					UpdateNodeStatus(pack.Node, STATUS_DIED)
 				}
 
@@ -282,12 +282,12 @@ func doForwardOnTimeout(pack *pendingAck) {
 	random_nodes := liveNodes.getRandomNodes(forwardCount(), thisHost, pack.Node)
 
 	if len(random_nodes) == 0 {
-		LogInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
+		logInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
 		UpdateNodeStatus(pack.Node, STATUS_DIED)
 	} else {
 		for i, n := range random_nodes {
-			LogfInfo("(%d/%d) Requesting indirect ping of %s via %s\n",
+			logfInfo("(%d/%d) Requesting indirect ping of %s via %s\n",
 				i+1,
 				len(random_nodes),
 				pack.Node.Address(),
@@ -332,7 +332,7 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb messageVerb, code
 		m.node.broadcastCounter--
 	}
 
-	LogfTrace("Sent %v to %v\n", verb, node.Address())
+	logfTrace("Sent %v to %v\n", verb, node.Address())
 
 	return nil
 }
@@ -373,7 +373,7 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 
 func updateStatusesFromMessage(msg message) {
 	for i, m := range msg.members {
-		LogfDebug("Member update (%d/%d): %s is now status %s\n",
+		logfDebug("Member update (%d/%d): %s is now status %s\n",
 			i+1,
 			len(msg.members),
 			m.node.Address(),
