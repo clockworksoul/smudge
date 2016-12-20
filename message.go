@@ -16,10 +16,10 @@ type message struct {
 type messageMember struct {
 	code   uint32
 	node   *Node
-	status nodeStatus
+	status NodeStatus
 }
 
-func (m *message) addMember(n *Node, status nodeStatus, code uint32) {
+func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
 	if m.members == nil {
 		m.members = make([]*messageMember, 0, 32)
 	}
@@ -52,7 +52,7 @@ func (m *message) encode() []byte {
 	bytes[0] = byte(m.verb)
 
 	// Bytes 01-02 Sender response port
-	sport := m.sender.Port
+	sport := m.sender.port
 	for i := uint16(0); i < 2; i++ {
 		sport >>= (i * 8)
 		bytes[i+1] = byte(sport)
@@ -78,13 +78,13 @@ func (m *message) encode() []byte {
 		bytes[p] = byte(mstatus)
 
 		// Bytes (p + 01) to (p + 04): Originating host IP
-		ipb := mnode.IP
+		ipb := mnode.ip
 		for i := 0; i < 4; i++ {
 			bytes[p+1+i] = ipb[i]
 		}
 
 		// Bytes (p + 05) to (p + 06): Originating host response port
-		oport := mnode.Port
+		oport := mnode.port
 		for i := 0; i < 2; i++ {
 			oport >>= uint16(i * 8)
 			bytes[p+5+i] = byte(oport)
@@ -184,14 +184,14 @@ func parseMembers(bytes []byte) []*messageMember {
 	members := make([]*messageMember, 0, 1)
 
 	for b := 0; b < len(bytes); b += 11 {
-		var mstatus nodeStatus
+		var mstatus NodeStatus
 		var mip net.IP
 		var mport uint16
 		var mcode uint32
 		var mnode *Node
 
 		// Byte 00 Member status byte
-		mstatus = nodeStatus(bytes[b+0])
+		mstatus = NodeStatus(bytes[b+0])
 
 		// Bytes 01-04 Originating host IP (FWD only)
 		if bytes[b+1] > 0 {

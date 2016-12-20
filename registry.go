@@ -42,7 +42,7 @@ func CreateNodeByAddress(address string) (*Node, error) {
 	ip, port, err := parseNodeAddress(address)
 
 	if err == nil {
-		node := Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}
+		node := Node{ip: ip, port: port, timestamp: GetNowInMillis()}
 
 		return &node, nil
 	}
@@ -53,7 +53,7 @@ func CreateNodeByAddress(address string) (*Node, error) {
 // Given a node address IP address and port, this function creates and returns
 // a new node instance.
 func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
-	return &Node{IP: ip, Port: port, Timestamp: GetNowInMillis()}, nil
+	return &Node{ip: ip, port: port, timestamp: GetNowInMillis()}, nil
 }
 
 // Queries the host interface to determine the local IPv4 of this machine.
@@ -79,7 +79,7 @@ func GetLocalIP() (net.IP, error) {
 
 // Assigns a new status for the specified node, and adds that node to the
 // recently_updated list.
-func UpdateNodeStatus(n *Node, status nodeStatus) {
+func UpdateNodeStatus(n *Node, status NodeStatus) {
 	if n.status != status {
 		if status == STATUS_DIED {
 			fmt.Printf("Node removed: %v\n", n)
@@ -89,7 +89,7 @@ func UpdateNodeStatus(n *Node, status nodeStatus) {
 			deadNodes = append(deadNodes, n)
 		}
 
-		n.Timestamp = GetNowInMillis()
+		n.timestamp = GetNowInMillis()
 		n.status = status
 		n.broadcastCounter = byte(announceCount())
 
@@ -99,11 +99,10 @@ func UpdateNodeStatus(n *Node, status nodeStatus) {
 
 		contains := false
 
-	RULoop:
 		for _, ru := range recently_updated {
 			if ru.Address() == n.Address() {
 				contains = true
-				break RULoop
+				break
 			}
 		}
 

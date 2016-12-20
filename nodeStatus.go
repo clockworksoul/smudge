@@ -1,9 +1,9 @@
 package blackfish
 
-type nodeStatus byte
+type NodeStatus byte
 
 const (
-	STATUS_JOINED nodeStatus = iota
+	STATUS_JOINED NodeStatus = iota
 	STATUS_ALIVE
 	STATUS_FORWARD_TO
 	STATUS_LEFT
@@ -11,7 +11,7 @@ const (
 	STATUS_SUSPECTED
 )
 
-func (s nodeStatus) String() string {
+func (s NodeStatus) String() string {
 	switch s {
 	case STATUS_JOINED:
 		return "JOINED"

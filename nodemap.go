@@ -27,7 +27,7 @@ func (m *nodeMap) add(node *Node) (string, *Node, error) {
 	key := node.Address()
 
 	node.Touch()
-	node.Heartbeats = currentHeartbeat
+	node.heartbeats = currentHeartbeat
 
 	m.Lock()
 	m.nodes[node.Address()] = node
@@ -170,14 +170,14 @@ func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
 			// If the heartbeats are exactly equal, we don't merge the node,
 			// but since we also don't want to retarnsmit it back to its source
 			// we add to the slice of 'merged' nodes.
-			if msgNode.Heartbeats >= existingNode.Heartbeats {
+			if msgNode.heartbeats >= existingNode.heartbeats {
 				mergedNodes = append(mergedNodes, existingNode)
 			}
 
-			if msgNode.Heartbeats > existingNode.Heartbeats {
+			if msgNode.heartbeats > existingNode.heartbeats {
 				// We have this node in our list. Touch it to update the timestamp.
 				//
-				existingNode.Heartbeats = msgNode.Heartbeats
+				existingNode.heartbeats = msgNode.heartbeats
 				existingNode.Touch()
 
 				fmt.Printf("[%s] Node exists; is now: %v\n",
