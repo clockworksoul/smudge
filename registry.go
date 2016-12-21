@@ -18,7 +18,8 @@ var liveNodes nodeMap = nodeMap{}
 // rejoin the living.
 var deadNodes nodeMap = nodeMap{}
 
-var recentlyUpdated []*Node = make([]*Node, 0, 64)
+// A collection of all nodes that have been updated "recently".
+var recentlyUpdated nodeMap = nodeMap{}
 
 func init() {
 	liveNodes.init()
@@ -126,19 +127,9 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		}
 
 		// If this isn't in the recently updated list, add it.
-		// TODO Replace with a map
 
-		contains := false
-
-		for _, ru := range recentlyUpdated {
-			if ru.Address() == n.Address() {
-				contains = true
-				break
-			}
-		}
-
-		if !contains {
-			recentlyUpdated = append(recentlyUpdated, n)
+		if !recentlyUpdated.contains(n) {
+			recentlyUpdated.add(n)
 		}
 
 		doStatusUpdate(n, status)
@@ -150,22 +141,17 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
  *****************************************************************************/
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
-	// First, prune those with broadcast counters of zero from the list
-
-	pruned := make([]*Node, 0, len(recentlyUpdated))
-	for _, n := range recentlyUpdated {
-		if n.broadcastCounter > 0 {
-			pruned = append(pruned, n)
-		} else {
+	// Prune nodes with broadcast counters of 0 (or less) from the list
+	for _, n := range recentlyUpdated.values() {
+		if n.broadcastCounter <= 0 {
 			logInfo("Removing", n.Address(), "from recently updated list")
+			recentlyUpdated.delete(n)
 		}
 	}
-	recentlyUpdated = pruned
 
 	// Make a copy of the recently update nodes slice
 
-	updated_copy := make([]*Node, len(recentlyUpdated), len(recentlyUpdated))
-	copy(updated_copy, recentlyUpdated)
+	updated_copy := recentlyUpdated.values()
 
 	// Exclude the exclusions
 	// TODO This is stupid inefficient. Use a set implementation of
