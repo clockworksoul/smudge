@@ -27,14 +27,16 @@ var TIMEOUT_MILLIS uint32 = 150 // TODO Calculate this as the 99th percentile?
 func Begin() {
 	// Add this host.
 	ip, err := GetLocalIP()
-	if err != nil {
+	if err != nil || ip == nil {
 		logWarn("Warning: Could not resolve host IP")
 	} else {
 		me := Node{
 			ip:         ip,
 			port:       uint16(GetListenPort()),
 			heartbeats: currentHeartbeat,
-			timestamp:  GetNowInMillis()}
+			timestamp:  GetNowInMillis(),
+			status:     STATUS_ALIVE,
+		}
 
 		thisHostAddress = me.Address()
 		thisHost = &me
@@ -58,14 +60,13 @@ func Begin() {
 		logfDebug("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
 
 		// Ping one random node
-		node := liveNodes.getRandomNode(thisHost)
-		if node != nil {
-			PingNode(node)
+		nodes := getTargetNodes(1, thisHost)
+
+		if len(nodes) >= 1 {
+			PingNode(nodes[0])
 		} else {
 			logInfo("No nodes to ping. So lonely. :(")
 		}
-
-		// PingAllNodes()
 
 		// 1 heartbeat in 10, we resurrect a random dead node
 		// if currentHeartbeat%25 == 0 {
@@ -113,6 +114,27 @@ func PingNode(node *Node) error {
 /******************************************************************************
  * Private functions (for internal use only)
  *****************************************************************************/
+
+// Returns a random slice of valid ping/forward request targets; i.e., not
+// this node, and not dead.
+func getTargetNodes(count int, exclude ...*Node) []*Node {
+	randomNodes := liveNodes.getRandomNodes(0, exclude...)
+	filteredNodes := make([]*Node, 0, count)
+
+	for _, n := range randomNodes {
+		if len(filteredNodes) >= count {
+			break
+		}
+
+		if n.status == STATUS_DIED {
+			continue
+		}
+
+		filteredNodes = append(filteredNodes, n)
+	}
+
+	return filteredNodes
+}
 
 func listenUDP(port int) error {
 	listenAddress, err := net.ResolveUDPAddr("udp", ":"+strconv.FormatInt(int64(port), 10))
@@ -279,17 +301,17 @@ func startTimeoutCheckLoop() {
 }
 
 func doForwardOnTimeout(pack *pendingAck) {
-	random_nodes := liveNodes.getRandomNodes(forwardCount(), thisHost, pack.Node)
+	filteredNodes := getTargetNodes(forwardCount(), thisHost, pack.Node)
 
-	if len(random_nodes) == 0 {
+	if len(filteredNodes) == 0 {
 		logInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
 		UpdateNodeStatus(pack.Node, STATUS_DIED)
 	} else {
-		for i, n := range random_nodes {
+		for i, n := range filteredNodes {
 			logfInfo("(%d/%d) Requesting indirect ping of %s via %s\n",
 				i+1,
-				len(random_nodes),
+				len(filteredNodes),
 				pack.Node.Address(),
 				n.Address())
 
@@ -372,30 +394,31 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 }
 
 func updateStatusesFromMessage(msg message) {
-	for i, m := range msg.members {
-		logfDebug("Member update (%d/%d): %s is now status %s\n",
-			i+1,
-			len(msg.members),
-			m.node.Address(),
-			m.status)
+	for _, m := range msg.members {
+		// logfDebug("Member update (%d/%d): %s is now status %s\n",
+		// 	i+1,
+		// 	len(msg.members),
+		// 	m.node.Address(),
+		// 	m.status)
 
 		switch m.status {
 		case STATUS_FORWARD_TO:
 			// The FORWARD_TO status isn't useful here, so we ignore those
+			continue
 		case STATUS_DIED:
 			// The DIED status doesn't add nodes to the liveNodes map
 			UpdateNodeStatus(m.node, m.status)
 		default:
-			liveNodes.add(m.node)
 			UpdateNodeStatus(m.node, m.status)
+			AddNode(m.node)
 		}
 	}
 
 	// First, if we don't know the sender, we add it. Since it may have just
 	// rejoined the cluster from a dead state, we report its status as ALIVE.
 	if !liveNodes.contains(msg.sender) {
-		liveNodes.add(msg.sender)
 		UpdateNodeStatus(msg.sender, STATUS_ALIVE)
+		AddNode(msg.sender)
 	}
 }
 

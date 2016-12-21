@@ -43,6 +43,10 @@ func (s logLevel) String() string {
 	}
 }
 
+func SetLogThreshhold(level logLevel) {
+	logThreshhold = level
+}
+
 func log(level logLevel, a ...interface{}) (n int, err error) {
 	fmt.Fprint(os.Stdout, level.String()+" ")
 
@@ -99,8 +103,4 @@ func logfError(format string, a ...interface{}) (n int, err error) {
 
 func logfFatal(format string, a ...interface{}) (n int, err error) {
 	return logf(LOG_FATAL, format, a...)
-}
-
-func SetLogThreshhold(level logLevel) {
-	logThreshhold = level
 }

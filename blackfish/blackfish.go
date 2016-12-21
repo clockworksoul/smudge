@@ -31,6 +31,7 @@ func main() {
 		node, err := blackfish.CreateNodeByAddress(node_address)
 
 		if err == nil {
+			blackfish.UpdateNodeStatus(node, blackfish.STATUS_ALIVE)
 			blackfish.AddNode(node)
 		}
 	}

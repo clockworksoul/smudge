@@ -218,11 +218,15 @@ func parseMembers(bytes []byte) []*messageMember {
 			// Find the sender by the address associated with the message
 			mnode = liveNodes.getByIP(mip, mport)
 
-			// We don't know this node, so create a new one! Don't update its
-			// status: we do that elsewhere.
+			// We don't know this node, so create a new one!
+
 			if mnode == nil {
 				mnode, _ = CreateNodeByIP(mip, mport)
-				mnode, _ = AddNode(mnode)
+				mnode.status = mstatus
+
+				if !(mstatus == STATUS_DIED && deadNodes.contains(mnode)) {
+					mnode, _ = AddNode(mnode)
+				}
 			}
 		}
 

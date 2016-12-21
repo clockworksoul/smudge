@@ -14,12 +14,13 @@ var liveNodes nodeMap = nodeMap{}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
 // rejoin the living.
-var deadNodes []*Node = make([]*Node, 0, 64)
+var deadNodes nodeMap = nodeMap{}
 
 var recently_updated []*Node = make([]*Node, 0, 64)
 
 func init() {
 	liveNodes.init()
+	deadNodes.init()
 }
 
 /******************************************************************************
@@ -30,6 +31,15 @@ func init() {
 // Updates node heartbeat in the process, but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
+	logInfo("Adding host:", node.Address())
+
+	if node.status == STATUS_NONE {
+		logWarn(node.Address(), "does not have a status!")
+	}
+
+	node.Touch()
+	node.heartbeats = currentHeartbeat
+
 	_, n, err := liveNodes.add(node)
 
 	return n, err
@@ -86,15 +96,15 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 
 		logfInfo("%s status is now %v\n", n.Address(), n.status)
 
-		// If this isn't in the recently updated list, add it.
-
 		if n.status == STATUS_DIED {
 			logfInfo("Node removed: %s\n", n.Address())
 
 			liveNodes.delete(n)
-
-			deadNodes = append(deadNodes, n)
+			deadNodes.add(n)
 		}
+
+		// If this isn't in the recently updated list, add it.
+		// TODO Replace with a map
 
 		contains := false
 
@@ -245,18 +255,8 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 
 // Returns a random dead node to the liveNodes map.
 func resurrectDeadNode() {
-	if len(deadNodes) == 1 {
-		liveNodes.add(deadNodes[0])
-		deadNodes = make([]*Node, 0, 64)
-	} else if len(deadNodes) > 1 {
-		i := rand.Intn(len(deadNodes))
-		liveNodes.add(deadNodes[i])
+	randomDeadNode := deadNodes.getRandomNode()
 
-		dsub := deadNodes[:i]
-		deadNodes := deadNodes[i+1:]
-
-		for _, dn := range dsub {
-			deadNodes = append(deadNodes, dn)
-		}
-	}
+	deadNodes.delete(randomDeadNode)
+	AddNode(randomDeadNode)
 }

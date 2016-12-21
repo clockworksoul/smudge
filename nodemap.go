@@ -21,12 +21,7 @@ func (m *nodeMap) init() {
 // Updates node heartbeat in the process.
 // This is the method called by all Add* functions.
 func (m *nodeMap) add(node *Node) (string, *Node, error) {
-	logInfo("Adding host:", node.Address())
-
 	key := node.Address()
-
-	node.Touch()
-	node.heartbeats = currentHeartbeat
 
 	m.Lock()
 	m.nodes[node.Address()] = node
@@ -117,6 +112,11 @@ func (m *nodeMap) getRandomNode(exclude ...*Node) *Node {
 // returned.
 func (m *nodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
 	allNodes := m.values()
+
+	if size == 0 {
+		size = len(allNodes)
+	}
+
 	// First, shuffle the allNodes slice
 	for i := range allNodes {
 		j := rand.Intn(i + 1)
@@ -125,6 +125,8 @@ func (m *nodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
 
 	// Copy the first size nodes that are not otherwise excluded
 	filtered := make([]*Node, 0, len(allNodes))
+
+	// Horribly inefficient. Fix this later.
 
 	var c int = 0
 Outer:
