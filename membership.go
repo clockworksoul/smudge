@@ -35,7 +35,6 @@ func Begin() {
 			port:       uint16(GetListenPort()),
 			heartbeats: currentHeartbeat,
 			timestamp:  GetNowInMillis(),
-			status:     STATUS_ALIVE,
 		}
 
 		thisHostAddress = me.Address()
@@ -47,8 +46,8 @@ func Begin() {
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
-	AddNode(thisHost)
 	UpdateNodeStatus(thisHost, STATUS_ALIVE)
+	AddNode(thisHost)
 
 	go listenUDP(GetListenPort())
 
@@ -70,7 +69,7 @@ func Begin() {
 		if len(nodes) >= 1 {
 			PingNode(nodes[0])
 		} else {
-			logInfo("No nodes to ping. So lonely. :(")
+			logDebug("No nodes to ping. So lonely. :(")
 		}
 
 		// 1 heartbeat in 10, we resurrect a random dead node
@@ -290,10 +289,16 @@ func startTimeoutCheckLoop() {
 					go doForwardOnTimeout(pack)
 				case PACK_FORWARD:
 					logInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
-					UpdateNodeStatus(pack.Callback, STATUS_DIED)
+
+					if liveNodes.contains(pack.Node) {
+						UpdateNodeStatus(pack.Callback, STATUS_DIED)
+					}
 				case PACK_NFP:
 					logInfo(k, "timed out after", TIMEOUT_MILLIS, "milliseconds")
-					UpdateNodeStatus(pack.Node, STATUS_DIED)
+
+					if liveNodes.contains(pack.Node) {
+						UpdateNodeStatus(pack.Node, STATUS_DIED)
+					}
 				}
 
 				delete(pendingAcks.m, k)
@@ -314,7 +319,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 		UpdateNodeStatus(pack.Node, STATUS_DIED)
 	} else {
 		for i, n := range filteredNodes {
-			logfInfo("(%d/%d) Requesting indirect ping of %s via %s\n",
+			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
 				i+1,
 				len(filteredNodes),
 				pack.Node.Address(),
@@ -344,8 +349,13 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 		msg.addMember(forwardTo, STATUS_FORWARD_TO, code)
 	}
 
-	// Add members for update
-	for _, m := range getRandomUpdatedNodes(forwardCount(), node) {
+	// Add members for update. If we have nothing in the updated nodes list,
+	// add a random node from the live list.
+	nodes := getRandomUpdatedNodes(forwardCount(), node)
+	if len(nodes) > 0 {
+		nodes = getTargetNodes(forwardCount(), node, thisHost)
+	}
+	for _, m := range nodes {
 		msg.addMember(m, m.status, currentHeartbeat)
 	}
 

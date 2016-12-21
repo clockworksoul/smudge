@@ -19,7 +19,7 @@ const (
 	LOG_OFF
 )
 
-var logThreshhold logLevel = LOG_DEBUG
+var logThreshhold logLevel = LOG_INFO
 
 func (s logLevel) String() string {
 	switch s {

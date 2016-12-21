@@ -30,12 +30,14 @@ func (m *nodeMap) add(node *Node) (string, *Node, error) {
 	return key, node, nil
 }
 
-func (m *nodeMap) delete(node *Node) {
+func (m *nodeMap) delete(node *Node) (string, *Node, error) {
 	m.Lock()
 
 	delete(m.nodes, node.Address())
 
 	m.Unlock()
+
+	return node.Address(), node, nil
 }
 
 func (m *nodeMap) contains(node *Node) bool {

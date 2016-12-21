@@ -10,7 +10,7 @@ import (
 )
 
 // A scalar value used to calculate a variety of limits
-const LAMBDA = 5.0
+const LAMBDA = 2.5
 
 // Currenty active nodes.
 var liveNodes nodeMap = nodeMap{}
@@ -34,18 +34,24 @@ func init() {
 // Updates node heartbeat in the process, but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
-	logInfo("Adding host:", node.Address())
+	if !liveNodes.contains(node) {
+		logfInfo("Adding host: %s (status=%s)\n", node.Address(), node.status)
 
-	if node.status == STATUS_NONE {
-		logWarn(node.Address(), "does not have a status!")
+		if node.status == STATUS_NONE {
+			logWarn(node.Address(), "does not have a status!")
+		} else if node.status == STATUS_FORWARD_TO {
+			panic("Invalid status: " + STATUS_FORWARD_TO.String())
+		}
+
+		node.Touch()
+		node.heartbeats = currentHeartbeat
+
+		_, n, err := liveNodes.add(node)
+
+		return n, err
+	} else {
+		return node, nil
 	}
-
-	node.Touch()
-	node.heartbeats = currentHeartbeat
-
-	_, n, err := liveNodes.add(node)
-
-	return n, err
 }
 
 // Given a node address ("ip:port" string), creates and returns a new node
@@ -89,6 +95,24 @@ func GetLocalIP() (net.IP, error) {
 	return ip, nil
 }
 
+// Removes a node. Returns node, error.
+// Updates node heartbeat in the process, but DOES NOT implicitly update the
+// node's status; you need to do this explicitly.
+func RemoveNode(node *Node) (*Node, error) {
+	if !liveNodes.contains(node) {
+		logfInfo("Removing host: %s (status=%s)\n", node.Address(), node.status)
+
+		node.Touch()
+		node.heartbeats = currentHeartbeat
+
+		_, n, err := liveNodes.delete(node)
+
+		return n, err
+	} else {
+		return node, nil
+	}
+}
+
 // Assigns a new status for the specified node, and adds that node to the
 // recentlyUpdated list.
 func UpdateNodeStatus(n *Node, status NodeStatus) {
@@ -97,12 +121,10 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		n.status = status
 		n.broadcastCounter = byte(announceCount())
 
-		logfInfo("%s status is now %v\n", n.Address(), n.status)
-
 		if n.status == STATUS_DIED {
 			logfInfo("Node removed: %s\n", n.Address())
 
-			liveNodes.delete(n)
+			RemoveNode(n)
 			deadNodes.add(n)
 		}
 
@@ -121,6 +143,8 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		if !contains {
 			recentlyUpdated = append(recentlyUpdated, n)
 		}
+
+		doStatusUpdate(n, status)
 	}
 }
 
