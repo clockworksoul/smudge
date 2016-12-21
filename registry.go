@@ -74,7 +74,9 @@ func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
 	return &Node{ip: ip, port: port, timestamp: GetNowInMillis()}, nil
 }
 
-// Queries the host interface to determine the local IPv4 of this machine.
+// Queries the host interface to determine the local IPv4 of this machine. If
+// a local IPv4 cannot be found, then nil is returned. If the query to the
+// underlying OS fails, an error is returned.
 func GetLocalIP() (net.IP, error) {
 	var ip net.IP
 
@@ -227,6 +229,11 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 
 	if ip.IsLoopback() {
 		ip, err = GetLocalIP()
+
+		if ip == nil {
+			logWarn("Warning: Could not resolve host IP. Using 127.0.0.1")
+			ip = []byte{127, 0, 0, 1}
+		}
 	}
 
 	return ip, port, err

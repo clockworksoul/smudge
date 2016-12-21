@@ -28,21 +28,27 @@ var TIMEOUT_MILLIS uint32 = 150 // TODO Calculate this as the 99th percentile?
 func Begin() {
 	// Add this host.
 	ip, err := GetLocalIP()
-	if err != nil || ip == nil {
-		logWarn("Warning: Could not resolve host IP")
-	} else {
-		me := Node{
-			ip:        ip,
-			port:      uint16(GetListenPort()),
-			timestamp: GetNowInMillis(),
-		}
-
-		thisHostAddress = me.Address()
-		thisHost = &me
-
-		logInfo("My host address:", thisHostAddress)
-		logInfo("My host:", thisHost)
+	if err != nil {
+		logFatal("Could not get local ip:", err)
+		return
 	}
+
+	if ip == nil {
+		logWarn("Warning: Could not resolve host IP. Using 127.0.0.1")
+		ip = []byte{127, 0, 0, 1}
+	}
+
+	me := Node{
+		ip:        ip,
+		port:      uint16(GetListenPort()),
+		timestamp: GetNowInMillis(),
+	}
+
+	thisHostAddress = me.Address()
+	thisHost = &me
+
+	logInfo("My host address:", thisHostAddress)
+	logInfo("My host:", thisHost)
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
