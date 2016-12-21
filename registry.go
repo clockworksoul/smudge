@@ -2,7 +2,6 @@ package blackfish
 
 import (
 	"errors"
-	"math"
 	"math/rand"
 	"net"
 	"strconv"
@@ -151,36 +150,6 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 /******************************************************************************
  * Private functions (for internal use only)
  *****************************************************************************/
-
-// How many times a node should be broadcast after its status is updated.
-func announceCount() int {
-	var count int
-
-	if liveNodes.length() > 0 {
-		logn := math.Log(float64(liveNodes.length()))
-
-		mult := (LAMBDA * logn) + 0.5
-
-		count = int(mult)
-	}
-
-	return count
-}
-
-// The number of nodes to request a forward of when a PING times out.
-func forwardCount() int {
-	var count int
-
-	if liveNodes.length() > 0 {
-		logn := math.Log(float64(liveNodes.length()))
-
-		mult := (LAMBDA * logn) + 0.5
-
-		count = int(mult)
-	}
-
-	return count
-}
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	// First, prune those with broadcast counters of zero from the list

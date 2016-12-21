@@ -1,6 +1,7 @@
 package blackfish
 
 import (
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -118,6 +119,56 @@ func PingNode(node *Node) error {
 /******************************************************************************
  * Private functions (for internal use only)
  *****************************************************************************/
+
+// How many times a node should be broadcast after its status is updated.
+func announceCount() int {
+	var count int
+
+	if liveNodes.length() > 0 {
+		logn := math.Log(float64(liveNodes.length()))
+
+		mult := (LAMBDA * logn) + 0.5
+
+		count = int(mult)
+	}
+
+	return count
+}
+
+func doForwardOnTimeout(pack *pendingAck) {
+	filteredNodes := getTargetNodes(forwardCount(), thisHost, pack.Node)
+
+	if len(filteredNodes) == 0 {
+		logInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
+
+		UpdateNodeStatus(pack.Node, STATUS_DIED)
+	} else {
+		for i, n := range filteredNodes {
+			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
+				i+1,
+				len(filteredNodes),
+				pack.Node.Address(),
+				n.Address())
+
+			transmitVerbForwardUDP(n, pack.Node, currentHeartbeat)
+		}
+	}
+}
+
+// The number of nodes to request a forward of when a PING times out.
+func forwardCount() int {
+	var count int
+
+	if liveNodes.length() > 0 {
+		logn := math.Log(float64(liveNodes.length()))
+
+		mult := (LAMBDA * logn) + 0.5
+
+		count = int(mult)
+	}
+
+	return count
+}
 
 // Returns a random slice of valid ping/forward request targets; i.e., not
 // this node, and not dead.
@@ -307,26 +358,6 @@ func startTimeoutCheckLoop() {
 		pendingAcks.Unlock()
 
 		time.Sleep(time.Millisecond * 500)
-	}
-}
-
-func doForwardOnTimeout(pack *pendingAck) {
-	filteredNodes := getTargetNodes(forwardCount(), thisHost, pack.Node)
-
-	if len(filteredNodes) == 0 {
-		logInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
-
-		UpdateNodeStatus(pack.Node, STATUS_DIED)
-	} else {
-		for i, n := range filteredNodes {
-			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
-				i+1,
-				len(filteredNodes),
-				pack.Node.Address(),
-				n.Address())
-
-			transmitVerbForwardUDP(n, pack.Node, currentHeartbeat)
-		}
 	}
 }
 
