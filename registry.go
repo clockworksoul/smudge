@@ -11,19 +11,20 @@ import (
 // A scalar value used to calculate a variety of limits
 const LAMBDA = 2.5
 
-// Currenty active nodes.
+// Currenty active nodes
 var liveNodes nodeMap = nodeMap{}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
-// rejoin the living.
+// rejoin the living
 var deadNodes nodeMap = nodeMap{}
 
-// A collection of all nodes that have been updated "recently".
-var recentlyUpdated nodeMap = nodeMap{}
+// All nodes that have been updated "recently", living and dead
+var updatedNodes nodeMap = nodeMap{}
 
 func init() {
 	liveNodes.init()
 	deadNodes.init()
+	updatedNodes.init()
 }
 
 /******************************************************************************
@@ -112,7 +113,7 @@ func RemoveNode(node *Node) (*Node, error) {
 }
 
 // Assigns a new status for the specified node, and adds that node to the
-// recentlyUpdated list.
+// updatedNodes list.
 func UpdateNodeStatus(n *Node, status NodeStatus) {
 	if n.status != status {
 		n.timestamp = GetNowInMillis()
@@ -128,8 +129,8 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 
 		// If this isn't in the recently updated list, add it.
 
-		if !recentlyUpdated.contains(n) {
-			recentlyUpdated.add(n)
+		if !updatedNodes.contains(n) {
+			updatedNodes.add(n)
 		}
 
 		doStatusUpdate(n, status)
@@ -142,16 +143,16 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	// Prune nodes with broadcast counters of 0 (or less) from the list
-	for _, n := range recentlyUpdated.values() {
+	for _, n := range updatedNodes.values() {
 		if n.broadcastCounter <= 0 {
 			logInfo("Removing", n.Address(), "from recently updated list")
-			recentlyUpdated.delete(n)
+			updatedNodes.delete(n)
 		}
 	}
 
 	// Make a copy of the recently update nodes slice
 
-	updated_copy := recentlyUpdated.values()
+	updated_copy := updatedNodes.values()
 
 	// Exclude the exclusions
 	// TODO This is stupid inefficient. Use a set implementation of
