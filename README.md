@@ -18,10 +18,116 @@ It was conceived with a space-sensitive systems (mobile, IOT, containers) in min
 * Re-try of lost nodes (with exponential backoff)
 * Adaptive timeouts (defined as the 99th percentile of all recently seen responses; currently hard-coded at 150ms)
 
-### Variations from [the SWIM paper](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
+### Variations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
 * If a node has no status change updates to transmit, it will instead choose a random node from its "known nodes" list.
 
 ### How to use
 
-### Examples
+To use the code, you simply specify a few configuration options (or use the defaults), create and add a node status change listener, and call the `blackfish.Begin()` function.
+
+
+#### Configuring the node with environment variables
+
+Perhaps the simplest way of directing the behavior of the SWIM driver is by setting the appropriate system environment variables, which is useful when making use of Blackfish inside of a container.
+
+The following variables and their default values are as follows:
+
+```
+Variable                   | Default | Description
+-------------------------- | ------- | -------------------------------
+BLACKFISH_HEARTBEAT_MILLIS |     500 | Milliseconds between heartbeats
+BLACKFISH_LISTEN_PORT      |    9999 | UDP port to listen on 
+```
+
+#### Configuring the node with environment variables
+
+If you prefer to direct the behavior of the service using the API, the calls are relatively straight-forward. Note that setting the application properties using this method overrides the behavior of environment variables.
+
+```
+blackfish.SetListenPort(9999)
+blackfish.SetHeartbeatMillis(500)
+```
+
+
+#### Creating and adding a status change listener
+
+Creating a status change listener is very straight-forward. 
+
+Simply: 
+
+```
+package main
+
+import "blackfish"
+import "fmt"
+
+type MyListener struct {
+	blackfish.StatusListener
+}
+
+func (m MyListener) OnChange(node *blackfish.Node, status blackfish.NodeStatus) {
+	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
+}
+
+func main() {
+	blackfish.AddStatusListener(MyListener{})
+}
+```
+
+
+#### Adding a remote node to the "known nodes" list
+
+```
+node, err := blackfish.CreateNodeByAddress("localhost:10000")
+if err == nil {
+    blackfish.AddNode(node)
+}
+```
+
+
+#### Starting the server
+
+Once everything else is done, starting the server is trivial.
+
+Simply call: `blackfish.Begin()`
+
+
+#### Everything in one place
+
+```
+package main
+
+import "blackfish"
+import "fmt"
+
+type MyListener struct {
+	blackfish.StatusListener
+}
+
+func (m MyListener) OnChange(node *blackfish.Node, status blackfish.NodeStatus) {
+	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
+}
+
+func main() {
+	heartbeatMillis := 500
+	listen_port := 9999
+
+	// Set configuration options
+	blackfish.SetListenPort(listen_port)
+	blackfish.SetHeartbeatMillis(heartbeatMillis)
+
+	// Add the listener
+	blackfish.AddStatusListener(MyListener{})
+
+	// Add a new remote node. Currently, to add an existing cluster at least
+	// one node must be known.
+	node, err := blackfish.CreateNodeByAddress("localhost:10000")
+	if err == nil {
+		blackfish.AddNode(node)
+	}
+
+	// Start the server!
+	blackfish.Begin()
+}
+```
