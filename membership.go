@@ -32,10 +32,9 @@ func Begin() {
 		logWarn("Warning: Could not resolve host IP")
 	} else {
 		me := Node{
-			ip:         ip,
-			port:       uint16(GetListenPort()),
-			heartbeats: currentHeartbeat,
-			timestamp:  GetNowInMillis(),
+			ip:        ip,
+			port:      uint16(GetListenPort()),
+			timestamp: GetNowInMillis(),
 		}
 
 		thisHostAddress = me.Address()
@@ -272,7 +271,6 @@ func receiveVerbAckUDP(msg message) error {
 	if ok {
 		// TODO Keep statistics on response times
 
-		msg.sender.heartbeats = currentHeartbeat
 		msg.sender.Touch()
 
 		pendingAcks.Lock()

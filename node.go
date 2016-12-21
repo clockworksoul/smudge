@@ -10,7 +10,6 @@ import (
 type Node struct {
 	ip               net.IP
 	port             uint16
-	heartbeats       uint32
 	timestamp        uint32
 	address          string
 	status           NodeStatus
@@ -33,12 +32,6 @@ func (n *Node) Age() uint32 {
 // The number of times the current status will be broadcast to other nodes.
 func (n *Node) BroadcastCounter() byte {
 	return n.broadcastCounter
-}
-
-// The node's current heartbeat counter.
-// TODO Do we still need this now?
-func (n *Node) Heartbeats() uint32 {
-	return n.heartbeats
 }
 
 // The IP associated with this node.

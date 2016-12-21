@@ -43,7 +43,6 @@ func AddNode(node *Node) (*Node, error) {
 		}
 
 		node.Touch()
-		node.heartbeats = currentHeartbeat
 
 		_, n, err := liveNodes.add(node)
 
@@ -102,7 +101,6 @@ func RemoveNode(node *Node) (*Node, error) {
 		logfInfo("Removing host: %s (status=%s)\n", node.Address(), node.status)
 
 		node.Touch()
-		node.heartbeats = currentHeartbeat
 
 		_, n, err := liveNodes.delete(node)
 

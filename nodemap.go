@@ -156,51 +156,6 @@ func (m *nodeMap) length() int {
 	return len(m.nodes)
 }
 
-// Merges a slice of nodes into the nodes map.
-// Returns a slice of the nodes that were merged or updated (or ignored for
-// having exactly equal heartbeats)
-func (m *nodeMap) mergeNodeLists(msgNodes []*Node) []*Node {
-	mergedNodes := make([]*Node, 0, 1)
-
-	for _, msgNode := range msgNodes {
-		m.RLock()
-
-		existingNode, ok := m.nodes[msgNode.Address()]
-
-		m.RUnlock()
-
-		if ok {
-			// If the heartbeats are exactly equal, we don't merge the node,
-			// but since we also don't want to retarnsmit it back to its source
-			// we add to the slice of 'merged' nodes.
-			if msgNode.heartbeats >= existingNode.heartbeats {
-				mergedNodes = append(mergedNodes, existingNode)
-			}
-
-			if msgNode.heartbeats > existingNode.heartbeats {
-				// We have this node in our list. Touch it to update the timestamp.
-				//
-				existingNode.heartbeats = msgNode.heartbeats
-				existingNode.Touch()
-
-				logfInfo("[%s] Node exists; is now: %v\n",
-					msgNode.Address(), existingNode)
-			} else {
-				logfInfo("[%s] Node exists but heartbeat is older; ignoring\n",
-					msgNode.Address())
-			}
-		} else {
-			// We do not have this node in our list. Add it.
-			logInfo("New node identified:", msgNode)
-			m.add(msgNode)
-
-			mergedNodes = append(mergedNodes, msgNode)
-		}
-	}
-
-	return mergedNodes
-}
-
 func (m *nodeMap) keys() []string {
 	keys := make([]string, len(m.nodes))
 
