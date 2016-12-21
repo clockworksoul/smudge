@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// A scalar value used to calculate a variety of limits
+const LAMBDA = 5.0
+
 // Currenty active nodes.
 var liveNodes nodeMap = nodeMap{}
 
@@ -128,12 +131,11 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 // How many times a node should be broadcast after its status is updated.
 func announceCount() int {
 	var count int
-	var lamda float64 = 2.5 // TODO Parameterize this magic number (lambda)
 
 	if liveNodes.length() > 0 {
 		logn := math.Log(float64(liveNodes.length()))
 
-		mult := lamda * logn
+		mult := (LAMBDA * logn) + 0.5
 
 		count = int(mult)
 	}
@@ -144,12 +146,11 @@ func announceCount() int {
 // The number of nodes to request a forward of when a PING times out.
 func forwardCount() int {
 	var count int
-	var lamda float64 = 2.5 // TODO Parameterize this magic number (lambda)
 
 	if liveNodes.length() > 0 {
 		logn := math.Log(float64(liveNodes.length()))
 
-		mult := lamda * logn
+		mult := (LAMBDA * logn) + 0.5
 
 		count = int(mult)
 	}

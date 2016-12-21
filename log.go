@@ -3,6 +3,7 @@ package blackfish
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 type logLevel byte
@@ -18,7 +19,7 @@ const (
 	LOG_OFF
 )
 
-var logThreshhold logLevel = LOG_ALL
+var logThreshhold logLevel = LOG_DEBUG
 
 func (s logLevel) String() string {
 	switch s {
@@ -47,10 +48,20 @@ func SetLogThreshhold(level logLevel) {
 	logThreshhold = level
 }
 
-func log(level logLevel, a ...interface{}) (n int, err error) {
-	fmt.Fprint(os.Stdout, level.String()+" ")
+func prefix(level logLevel) string {
+	f := time.Now().Format("02/Jan/2006:15:04:05 MST")
 
-	return fmt.Fprintln(os.Stdout, a...)
+	return fmt.Sprintf("%5s %s -", level.String(), f)
+}
+
+func log(level logLevel, a ...interface{}) (n int, err error) {
+	if level >= logThreshhold {
+		fmt.Fprint(os.Stdout, prefix(level)+" ")
+
+		return fmt.Fprintln(os.Stdout, a...)
+	} else {
+		return 0, nil
+	}
 }
 
 func logTrace(a ...interface{}) (n int, err error) {
@@ -78,7 +89,11 @@ func logFatal(a ...interface{}) (n int, err error) {
 }
 
 func logf(level logLevel, format string, a ...interface{}) (n int, err error) {
-	return fmt.Fprintf(os.Stdout, level.String()+" "+format, a...)
+	if level >= logThreshhold {
+		return fmt.Fprintf(os.Stdout, prefix(level)+" "+format, a...)
+	} else {
+		return 0, nil
+	}
 }
 
 func logfTrace(format string, a ...interface{}) (n int, err error) {

@@ -57,7 +57,12 @@ func Begin() {
 	for {
 		currentHeartbeat++
 
-		logfDebug("[%d] %d hosts\n", currentHeartbeat, liveNodes.length())
+		logfDebug("%d - hosts=%d (announce=%d forward=%d [LAMBDA=%.1f])\n",
+			currentHeartbeat,
+			liveNodes.length(),
+			announceCount(),
+			forwardCount(),
+			LAMBDA)
 
 		// Ping one random node
 		nodes := getTargetNodes(1, thisHost)
