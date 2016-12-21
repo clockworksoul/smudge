@@ -16,7 +16,7 @@ var liveNodes nodeMap = nodeMap{}
 // rejoin the living.
 var deadNodes nodeMap = nodeMap{}
 
-var recently_updated []*Node = make([]*Node, 0, 64)
+var recentlyUpdated []*Node = make([]*Node, 0, 64)
 
 func init() {
 	liveNodes.init()
@@ -87,7 +87,7 @@ func GetLocalIP() (net.IP, error) {
 }
 
 // Assigns a new status for the specified node, and adds that node to the
-// recently_updated list.
+// recentlyUpdated list.
 func UpdateNodeStatus(n *Node, status NodeStatus) {
 	if n.status != status {
 		n.timestamp = GetNowInMillis()
@@ -108,7 +108,7 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 
 		contains := false
 
-		for _, ru := range recently_updated {
+		for _, ru := range recentlyUpdated {
 			if ru.Address() == n.Address() {
 				contains = true
 				break
@@ -116,7 +116,7 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		}
 
 		if !contains {
-			recently_updated = append(recently_updated, n)
+			recentlyUpdated = append(recentlyUpdated, n)
 		}
 	}
 }
@@ -160,20 +160,20 @@ func forwardCount() int {
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	// First, prune those with broadcast counters of zero from the list
 
-	pruned := make([]*Node, 0, len(recently_updated))
-	for _, n := range recently_updated {
+	pruned := make([]*Node, 0, len(recentlyUpdated))
+	for _, n := range recentlyUpdated {
 		if n.broadcastCounter > 0 {
 			pruned = append(pruned, n)
 		} else {
 			logInfo("Removing", n.Address(), "from recently updated list")
 		}
 	}
-	recently_updated = pruned
+	recentlyUpdated = pruned
 
 	// Make a copy of the recently update nodes slice
 
-	updated_copy := make([]*Node, len(recently_updated), len(recently_updated))
-	copy(updated_copy, recently_updated)
+	updated_copy := make([]*Node, len(recentlyUpdated), len(recentlyUpdated))
+	copy(updated_copy, recentlyUpdated)
 
 	// Exclude the exclusions
 	// TODO This is stupid inefficient. Use a set implementation of

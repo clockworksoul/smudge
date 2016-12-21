@@ -121,10 +121,10 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	var verb messageVerb = messageVerb(bytes[0] & byte(0x03))
 
 	// Bytes 01-02 Sender response port
-	var sender_port uint16
+	var senderPort uint16
 	for i := 2; i >= 1; i-- {
-		sender_port <<= 8
-		sender_port |= uint16(bytes[i])
+		senderPort <<= 8
+		senderPort |= uint16(bytes[i])
 	}
 
 	// Bytes 03-06 Sender ID Code
@@ -135,11 +135,11 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the IP and port, we can find the Node.
-	sender := liveNodes.getByIP(addr.IP.To4(), sender_port)
+	sender := liveNodes.getByIP(addr.IP.To4(), senderPort)
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
-		sender, _ = CreateNodeByIP(addr.IP.To4(), sender_port)
+		sender, _ = CreateNodeByIP(addr.IP.To4(), senderPort)
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage

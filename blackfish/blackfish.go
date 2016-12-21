@@ -7,28 +7,28 @@ import (
 )
 
 func main() {
-	var node_address string
-	var heartbeat_millis int
+	var nodeAddress string
+	var heartbeatMillis int
 	var listen_port int
 	var err error
 
-	flag.StringVar(&node_address, "node", "", "Initial node")
+	flag.StringVar(&nodeAddress, "node", "", "Initial node")
 
 	flag.IntVar(&listen_port, "port",
 		int(blackfish.GetListenPort()),
 		"The bind port")
 
-	flag.IntVar(&heartbeat_millis, "hbf",
+	flag.IntVar(&heartbeatMillis, "hbf",
 		int(blackfish.GetHeartbeatMillis()),
 		"The heartbeat frequency in milliseconds")
 
 	flag.Parse()
 
 	blackfish.SetListenPort(listen_port)
-	blackfish.SetHeartbeatMillis(heartbeat_millis)
+	blackfish.SetHeartbeatMillis(heartbeatMillis)
 
-	if node_address != "" {
-		node, err := blackfish.CreateNodeByAddress(node_address)
+	if nodeAddress != "" {
+		node, err := blackfish.CreateNodeByAddress(nodeAddress)
 
 		if err == nil {
 			blackfish.UpdateNodeStatus(node, blackfish.STATUS_ALIVE)

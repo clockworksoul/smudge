@@ -165,8 +165,8 @@ func listenUDP(port int) error {
 	}
 }
 
-func receiveMessageUDP(addr *net.UDPAddr, msg_bytes []byte) error {
-	msg, err := decodeMessage(addr, msg_bytes)
+func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
+	msg, err := decodeMessage(addr, msgBytes)
 	if err != nil {
 		return err
 	}
@@ -320,14 +320,14 @@ func doForwardOnTimeout(pack *pendingAck) {
 	}
 }
 
-func transmitVerbGenericUDP(node *Node, forward_to *Node, verb messageVerb, code uint32) error {
+func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code uint32) error {
 	// Transmit the ACK
-	remote_addr, err := net.ResolveUDPAddr("udp", node.Address())
+	remoteAddr, err := net.ResolveUDPAddr("udp", node.Address())
 	if err != nil {
 		return err
 	}
 
-	c, err := net.DialUDP("udp", nil, remote_addr)
+	c, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		return err
 	}
@@ -335,8 +335,8 @@ func transmitVerbGenericUDP(node *Node, forward_to *Node, verb messageVerb, code
 
 	msg := newMessage(verb, thisHost, code)
 
-	if forward_to != nil {
-		msg.addMember(forward_to, STATUS_FORWARD_TO, code)
+	if forwardTo != nil {
+		msg.addMember(forwardTo, STATUS_FORWARD_TO, code)
 	}
 
 	// Add members for update
