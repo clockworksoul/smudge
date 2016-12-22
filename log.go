@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-type logLevel byte
+type LogLevel byte
 
 const (
-	LOG_ALL logLevel = iota
+	LOG_ALL LogLevel = iota
 	LOG_TRACE
 	LOG_DEBUG
 	LOG_INFO
@@ -19,9 +19,9 @@ const (
 	LOG_OFF
 )
 
-var logThreshhold logLevel = LOG_INFO
+var logThreshhold LogLevel = LOG_INFO
 
-func (s logLevel) String() string {
+func (s LogLevel) String() string {
 	switch s {
 	case LOG_ALL:
 		return "ALL"
@@ -44,17 +44,17 @@ func (s logLevel) String() string {
 	}
 }
 
-func SetLogThreshhold(level logLevel) {
+func SetLogThreshhold(level LogLevel) {
 	logThreshhold = level
 }
 
-func prefix(level logLevel) string {
+func prefix(level LogLevel) string {
 	f := time.Now().Format("02/Jan/2006:15:04:05 MST")
 
 	return fmt.Sprintf("%5s %s -", level.String(), f)
 }
 
-func log(level logLevel, a ...interface{}) (n int, err error) {
+func log(level LogLevel, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
 		fmt.Fprint(os.Stdout, prefix(level)+" ")
 
@@ -88,7 +88,7 @@ func logFatal(a ...interface{}) (n int, err error) {
 	return log(LOG_FATAL, a...)
 }
 
-func logf(level logLevel, format string, a ...interface{}) (n int, err error) {
+func logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
 		return fmt.Fprintf(os.Stdout, prefix(level)+" "+format, a...)
 	} else {
