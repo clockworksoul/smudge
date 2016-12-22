@@ -26,7 +26,7 @@ const timeoutMillis uint32 = 150 // TODO Calculate this as the 99th percentile?
  *****************************************************************************/
 
 // This flag is set whenever a known node is added or removed.
-var knownNodesModifiedFlag bool = false
+var knownNodesModifiedFlag = false
 
 // Begin starts the server by opening a UDP port and beginning the heartbeat.
 // Note that this is a blocking function, so act appropriately.
@@ -73,8 +73,32 @@ func Begin() {
 		var pingCounter int
 
 		for _, node := range randomAllNodes {
+			// Exponential backoff of dead nodes, until such time as they are removed.
 			if node.status == StatusDead {
-				continue
+				var dnc *deadNodeCounter
+				var ok bool
+
+				if dnc, ok = deadNodeRetries[node.Address()]; !ok {
+					dnc = &deadNodeCounter{retry: 1, retryCountdown: 2}
+					deadNodeRetries[node.Address()] = dnc
+				}
+
+				dnc.retryCountdown--
+
+				if dnc.retryCountdown <= 0 {
+					dnc.retry++
+					dnc.retryCountdown = int(math.Pow(2.0, float64(dnc.retry)))
+
+					if dnc.retry > maxDeadNodeRetries {
+						logDebug("Forgetting dead node", node.Address())
+
+						delete(deadNodeRetries, node.Address())
+						RemoveNode(node)
+						continue
+					}
+				} else {
+					continue
+				}
 			}
 
 			currentHeartbeat++

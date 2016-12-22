@@ -24,7 +24,7 @@ func main() {
 
 	flag.Parse()
 
-	blackfish.SetLogThreshhold(blackfish.LogInfo)
+	blackfish.SetLogThreshhold(blackfish.LogDebug)
 	blackfish.SetListenPort(listen_port)
 	blackfish.SetHeartbeatMillis(heartbeatMillis)
 

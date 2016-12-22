@@ -18,6 +18,10 @@ var knownNodes = nodeMap{}
 // All nodes that have been updated "recently", living and dead
 var updatedNodes = nodeMap{}
 
+var deadNodeRetries = make(map[string]*deadNodeCounter)
+
+const maxDeadNodeRetries = 10
+
 func init() {
 	knownNodes.init()
 	updatedNodes.init()
@@ -142,6 +146,10 @@ func UpdateNodeStatus(node *Node, status NodeStatus) {
 			updatedNodes.add(node)
 		}
 
+		if status != StatusDead {
+			delete(deadNodeRetries, node.Address())
+		}
+
 		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)\n",
 			node.Address(),
 			status,
@@ -251,4 +259,9 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	}
 
 	return ip, port, err
+}
+
+type deadNodeCounter struct {
+	retry          int
+	retryCountdown int
 }
