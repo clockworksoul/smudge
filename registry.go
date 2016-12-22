@@ -69,7 +69,7 @@ func CreateNodeByAddress(address string) (*Node, error) {
 	return nil, err
 }
 
-// CreateNodeByAddress will create and return a new node when supplied with an
+// CreateNodeByIP will create and return a new node when supplied with an
 // IP address and port number. This doesn't add the node to the list of live
 // nodes; use AddNode().
 func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
