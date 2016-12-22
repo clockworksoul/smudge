@@ -25,8 +25,8 @@ const timeoutMillis uint32 = 150 // TODO Calculate this as the 99th percentile?
  * Exported functions (for public consumption)
  *****************************************************************************/
 
-// Starts the server by opening a UDP port and beginning the heartbeat. Note
-// that this is a blocking function, so act appropriately.
+// Begin starts the server by opening a UDP port and beginning the heartbeat.
+// Note that this is a blocking function, so act appropriately.
 func Begin() {
 	// Add this host.
 	ip, err := GetLocalIP()
@@ -89,8 +89,8 @@ func Begin() {
 	}
 }
 
-// User-friendly method to explicitly ping a node. Calls the low-level
-// doPingNode(), and outputs a message if it fails.
+// PingNode can be used to explicitly ping a node. Calls the low-level
+// doPingNode(), and outputs a message (and returns an error) if it fails.
 func PingNode(node *Node) error {
 	err := transmitVerbPingUDP(node, currentHeartbeat)
 	if err != nil {
@@ -224,13 +224,13 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 	//   FWD - Forwarding ping (contains origin address)
 	//   NFP - Non-forwarding ping
 	switch msg.verb {
-	case VERB_PING:
+	case VerbPing:
 		err = receiveVerbPingUDP(msg)
-	case VERB_ACK:
+	case VerbAck:
 		err = receiveVerbAckUDP(msg)
-	case VERB_FORWARD:
+	case VerbPingRequest:
 		err = receiveVerbForwardUDP(msg)
-	case VERB_NFPING:
+	case VerbNonForwardingPing:
 		err = receiveVerbNonForwardPingUDP(msg)
 	}
 
@@ -293,7 +293,7 @@ func receiveVerbForwardUDP(msg message) error {
 		pendingAcks.m[key] = &pack
 		pendingAcks.Unlock()
 
-		return transmitVerbGenericUDP(node, nil, VERB_NFPING, code)
+		return transmitVerbGenericUDP(node, nil, VerbNonForwardingPing, code)
 	}
 
 	return nil
@@ -401,11 +401,11 @@ func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
 	pendingAcks.m[key] = &pack
 	pendingAcks.Unlock()
 
-	return transmitVerbGenericUDP(node, downstream, VERB_FORWARD, code)
+	return transmitVerbGenericUDP(node, downstream, VerbPingRequest, code)
 }
 
 func transmitVerbAckUDP(node *Node, code uint32) error {
-	return transmitVerbGenericUDP(node, nil, VERB_ACK, code)
+	return transmitVerbGenericUDP(node, nil, VerbAck, code)
 }
 
 func transmitVerbPingUDP(node *Node, code uint32) error {
@@ -419,7 +419,7 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 	pendingAcks.m[key] = &pack
 	pendingAcks.Unlock()
 
-	return transmitVerbGenericUDP(node, nil, VERB_PING, code)
+	return transmitVerbGenericUDP(node, nil, VerbPing, code)
 }
 
 func updateStatusesFromMessage(msg message) {

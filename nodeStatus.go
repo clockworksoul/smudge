@@ -1,5 +1,6 @@
 package blackfish
 
+// NodeStatus represents the believed status of a member node.
 type NodeStatus byte
 
 const (

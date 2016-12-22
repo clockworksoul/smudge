@@ -3,21 +3,21 @@ package blackfish
 type messageVerb byte
 
 const (
-	VERB_PING messageVerb = iota
-	VERB_ACK
-	VERB_NFPING
-	VERB_FORWARD
+	VerbPing messageVerb = iota
+	VerbAck
+	VerbPingRequest
+	VerbNonForwardingPing
 )
 
 func (v messageVerb) String() string {
 	switch v {
-	case VERB_PING:
+	case VerbPing:
 		return "PING"
-	case VERB_ACK:
+	case VerbAck:
 		return "ACK"
-	case VERB_FORWARD:
-		return "FORWARD"
-	case VERB_NFPING:
+	case VerbPingRequest:
+		return "PINGREQ"
+	case VerbNonForwardingPing:
 		return "NFPING"
 	default:
 		return "UNDEFINED"

@@ -21,7 +21,7 @@ const (
 	LogOff
 )
 
-var logThreshhold LogLevel = LogInfo
+var logThreshhold = LogInfo
 
 func (s LogLevel) String() string {
 	switch s {
@@ -46,7 +46,8 @@ func (s LogLevel) String() string {
 	}
 }
 
-// Allows the output noise level to be adjusted by setting the logging threshhold.
+// SetLogThreshhold allows the output noise level to be adjusted by setting
+// the logging priority threshhold.
 func SetLogThreshhold(level LogLevel) {
 	logThreshhold = level
 }
