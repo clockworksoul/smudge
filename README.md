@@ -18,12 +18,11 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 
 ### Coming soon!
 * Support for multicast announcement and recruitment.
-* Periodic re-try of lost nodes (with exponential backoff).
 * Adaptive timeouts (defined as the 99th percentile of all recently seen responses; currently hard-coded at 150ms).
 
 ### Deviations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
-* If a node has no status change updates to transmit, it will instead choose a random node from its "known nodes" list.
+* Dead nodes are not immediately removed, but are instead periodically re-tried (with exponential backoff) for a time before finally being removed.
 
 ## How to use
 To use the code, you simply specify a few configuration options (or use the defaults), create and add a node status change listener, and call the `blackfish.Begin()` function.
