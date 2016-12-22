@@ -1,6 +1,7 @@
 # Blackfish
 
 [![GoDoc](https://godoc.org/github.com/ClockworkSoul/blackfish?status.svg)](https://godoc.org/github.com/ClockworkSoul/blackfish)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ClockworkSoul/blackfish)](https://goreportcard.com/report/github.com/ClockworkSoul/blackfish)
 
 ## Introduction 
 Blackfish is a minimalist Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
