@@ -31,9 +31,9 @@ func init() {
  * Exported functions (for public consumption)
  *****************************************************************************/
 
-// AddNode can be used to explicity add a node to the list of known live nodes.
-// Updates the node timestamp but DOES NOT implicitly update the node's status;
-// you need to do this explicitly.
+// AddNode can be used to explicitly add a node to the list of known live
+// nodes. Updates the node timestamp but DOES NOT implicitly update the node's
+// status; you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
 	if !knownNodes.contains(node) {
 		if node.status == StatusUnknown {
@@ -109,7 +109,7 @@ func GetLocalIP() (net.IP, error) {
 	return ip, nil
 }
 
-// RemoveNode can be used to explicity remove a node from the list of known
+// RemoveNode can be used to explicitly remove a node from the list of known
 // live nodes. Updates the node timestamp but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func RemoveNode(node *Node) (*Node, error) {

@@ -193,7 +193,7 @@ func parseMembers(bytes []byte) []*messageMember {
 		// Byte 00 Member status byte
 		mstatus = NodeStatus(bytes[b+0])
 
-		// Bytes 01-04 memeber IP
+		// Bytes 01-04 member IP
 		if bytes[b+1] > 0 {
 			mip = net.IPv4(
 				bytes[b+1],
