@@ -19,8 +19,6 @@ func AddStatusListener(listener StatusListener) {
 }
 
 func doStatusUpdate(node *Node, status NodeStatus) {
-	logfInfo("UPDATE: %s is now %v\n", node.Address(), status)
-
 	for _, sl := range statusListeners {
 		sl.OnChange(node, status)
 	}

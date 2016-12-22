@@ -11,19 +11,15 @@ import (
 // A scalar value used to calculate a variety of limits
 const LAMBDA = 2.5
 
-// Currenty active nodes
-var liveNodes = nodeMap{}
-
-// Recently dead nodes. Periodically a random dead node will be allowed to
-// rejoin the living
-var deadNodes = nodeMap{}
+// All known nodes, living and dead. Dead nodes are pinged (far) less often,
+// and are eventually removed
+var knownNodes = nodeMap{}
 
 // All nodes that have been updated "recently", living and dead
 var updatedNodes = nodeMap{}
 
 func init() {
-	liveNodes.init()
-	deadNodes.init()
+	knownNodes.init()
 	updatedNodes.init()
 }
 
@@ -35,7 +31,7 @@ func init() {
 // Updates the node timestamp but DOES NOT implicitly update the node's status;
 // you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
-	if !liveNodes.contains(node) {
+	if !knownNodes.contains(node) {
 		if node.status == StatusUnknown {
 			logWarn(node.Address(),
 				"does not have a status! Setting to",
@@ -48,11 +44,15 @@ func AddNode(node *Node) (*Node, error) {
 
 		node.Touch()
 
-		_, n, err := liveNodes.add(node)
+		_, n, err := knownNodes.add(node)
 
-		logfInfo("Adding host: %s (members=%d)\n", node.Address(), liveNodes.length())
+		logfInfo("Adding host: %s (total=%d live=%d dead=%d)\n",
+			node.Address(),
+			knownNodes.length(),
+			knownNodes.lengthWithStatus(StatusAlive),
+			knownNodes.lengthWithStatus(StatusDead))
 
-		liveNodesModifiedFlag = true
+		knownNodesModifiedFlag = true
 
 		return n, err
 	}
@@ -109,14 +109,18 @@ func GetLocalIP() (net.IP, error) {
 // live nodes. Updates the node timestamp but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func RemoveNode(node *Node) (*Node, error) {
-	if liveNodes.contains(node) {
+	if knownNodes.contains(node) {
 		node.Touch()
 
-		_, n, err := liveNodes.delete(node)
+		_, n, err := knownNodes.delete(node)
 
-		logfInfo("Removing host: %s (members=%d)\n", node.Address(), liveNodes.length())
+		logfInfo("Removing host: %s (total=%d live=%d dead=%d)\n",
+			node.Address(),
+			knownNodes.length(),
+			knownNodes.lengthWithStatus(StatusAlive),
+			knownNodes.lengthWithStatus(StatusDead))
 
-		liveNodesModifiedFlag = true
+		knownNodesModifiedFlag = true
 
 		return n, err
 	}
@@ -127,25 +131,25 @@ func RemoveNode(node *Node) (*Node, error) {
 // UpdateNodeStatus assigns a new status for the specified node and adds it to
 // the list of recently updated nodes. If the status is StatusDead, then the
 // node will be moved from the live nodes list to the dead nodes list.
-func UpdateNodeStatus(n *Node, status NodeStatus) {
-	if n.status != status {
-		n.timestamp = GetNowInMillis()
-		n.status = status
-		n.broadcastCounter = byte(announceCount())
-
-		if n.status == StatusDead {
-			logfInfo("Node removed: %s\n", n.Address())
-
-			RemoveNode(n)
-			deadNodes.add(n)
-		}
+func UpdateNodeStatus(node *Node, status NodeStatus) {
+	if node.status != status {
+		node.timestamp = GetNowInMillis()
+		node.status = status
+		node.broadcastCounter = byte(announceCount())
 
 		// If this isn't in the recently updated list, add it.
-		if !updatedNodes.contains(n) {
-			updatedNodes.add(n)
+		if !updatedNodes.contains(node) {
+			updatedNodes.add(node)
 		}
 
-		doStatusUpdate(n, status)
+		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)\n",
+			node.Address(),
+			status,
+			knownNodes.length(),
+			knownNodes.lengthWithStatus(StatusAlive),
+			knownNodes.lengthWithStatus(StatusDead))
+
+		doStatusUpdate(node, status)
 	}
 }
 
@@ -247,12 +251,4 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	}
 
 	return ip, port, err
-}
-
-// Returns a random dead node to the liveNodes map.
-func resurrectDeadNode() {
-	randomDeadNode := deadNodes.getRandomNode()
-
-	deadNodes.delete(randomDeadNode)
-	AddNode(randomDeadNode)
 }

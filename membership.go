@@ -25,8 +25,8 @@ const timeoutMillis uint32 = 150 // TODO Calculate this as the 99th percentile?
  * Exported functions (for public consumption)
  *****************************************************************************/
 
-// This flag is set whenever a live node is added or removed.
-var liveNodesModifiedFlag bool = false
+// This flag is set whenever a known node is added or removed.
+var knownNodesModifiedFlag bool = false
 
 // Begin starts the server by opening a UDP port and beginning the heartbeat.
 // Note that this is a blocking function, so act appropriately.
@@ -64,12 +64,12 @@ func Begin() {
 	go startTimeoutCheckLoop()
 
 	// Loop over a randomized list of all known nodes (except for this host
-	// node), pinging one at a time. If the liveNodesModifiedFlag is set to
+	// node), pinging one at a time. If the knownNodesModifiedFlag is set to
 	// true by AddNode() or RemoveNode(), the we get a fresh list and start
 	// again.
 
 	for {
-		var randomAllNodes = liveNodes.getRandomNodes(0, thisHost)
+		var randomAllNodes = knownNodes.getRandomNodes(0, thisHost)
 		var pingCounter int
 
 		for _, node := range randomAllNodes {
@@ -81,7 +81,7 @@ func Begin() {
 
 			logfDebug("%d - hosts=%d (announce=%d forward=%d)\n",
 				currentHeartbeat,
-				liveNodes.length(),
+				len(randomAllNodes),
 				announceCount(),
 				forwardCount())
 
@@ -90,8 +90,8 @@ func Begin() {
 
 			time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
 
-			if liveNodesModifiedFlag {
-				liveNodesModifiedFlag = false
+			if knownNodesModifiedFlag {
+				knownNodesModifiedFlag = false
 				break
 			}
 		}
@@ -122,8 +122,8 @@ func PingNode(node *Node) error {
 func announceCount() int {
 	var count int
 
-	if liveNodes.length() > 0 {
-		logn := math.Log(float64(liveNodes.length()))
+	if knownNodes.length() > 0 {
+		logn := math.Log(float64(knownNodes.length()))
 
 		mult := (LAMBDA * logn) + 0.5
 
@@ -157,8 +157,8 @@ func doForwardOnTimeout(pack *pendingAck) {
 func forwardCount() int {
 	var count int
 
-	if liveNodes.length() > 0 {
-		logn := math.Log(float64(liveNodes.length()))
+	if knownNodes.length() > 0 {
+		logn := math.Log(float64(knownNodes.length()))
 
 		mult := (LAMBDA * logn) + 0.5
 
@@ -171,7 +171,7 @@ func forwardCount() int {
 // Returns a random slice of valid ping/forward request targets; i.e., not
 // this node, and not dead.
 func getTargetNodes(count int, exclude ...*Node) []*Node {
-	randomNodes := liveNodes.getRandomNodes(0, exclude...)
+	randomNodes := knownNodes.getRandomNodes(0, exclude...)
 	filteredNodes := make([]*Node, 0, count)
 
 	for _, n := range randomNodes {
@@ -340,13 +340,13 @@ func startTimeoutCheckLoop() {
 				case packPingReq:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
-					if liveNodes.contains(pack.Node) {
+					if knownNodes.contains(pack.Node) {
 						UpdateNodeStatus(pack.Callback, StatusDead)
 					}
 				case packNFP:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
-					if liveNodes.contains(pack.Node) {
+					if knownNodes.contains(pack.Node) {
 						UpdateNodeStatus(pack.Node, StatusDead)
 					}
 				}
@@ -447,8 +447,11 @@ func updateStatusesFromMessage(msg message) {
 			// The FORWARD_TO status isn't useful here, so we ignore those
 			continue
 		case StatusDead:
-			// The DIED status doesn't add nodes to the liveNodes map
-			UpdateNodeStatus(m.node, m.status)
+			// Don't tell ME I'm dead.
+			if m.node.Address() != thisHost.Address() {
+				UpdateNodeStatus(m.node, m.status)
+				AddNode(m.node)
+			}
 		default:
 			UpdateNodeStatus(m.node, m.status)
 			AddNode(m.node)
@@ -457,8 +460,9 @@ func updateStatusesFromMessage(msg message) {
 
 	// First, if we don't know the sender, we add it. Since it may have just
 	// rejoined the cluster from a dead state, we report its status as ALIVE.
-	if !liveNodes.contains(msg.sender) {
-		UpdateNodeStatus(msg.sender, StatusAlive)
+	UpdateNodeStatus(msg.sender, StatusAlive)
+
+	if !knownNodes.contains(msg.sender) {
 		AddNode(msg.sender)
 	}
 }

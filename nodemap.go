@@ -156,6 +156,21 @@ func (m *nodeMap) length() int {
 	return len(m.nodes)
 }
 
+func (m *nodeMap) lengthWithStatus(status NodeStatus) int {
+	m.RLock()
+
+	i := 0
+	for _, v := range m.nodes {
+		if v.status == status {
+			i++
+		}
+	}
+
+	m.RUnlock()
+
+	return i
+}
+
 func (m *nodeMap) keys() []string {
 	m.RLock()
 

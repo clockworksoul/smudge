@@ -135,7 +135,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the IP and port, we can find the Node.
-	sender := liveNodes.getByIP(addr.IP.To4(), senderPort)
+	sender := knownNodes.getByIP(addr.IP.To4(), senderPort)
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
@@ -216,25 +216,11 @@ func parseMembers(bytes []byte) []*messageMember {
 
 		if len(mip) > 0 {
 			// Find the sender by the address associated with the message
-			mnode = liveNodes.getByIP(mip, mport)
-
-			// It's not a living node. Is it among the dead?
-			if mnode == nil {
-				mnode = deadNodes.getByIP(mip, mport)
-			}
+			mnode = knownNodes.getByIP(mip, mport)
 
 			// We still don't know this node, so create a new one!
 			if mnode == nil {
 				mnode, _ = CreateNodeByIP(mip, mport)
-
-				// The StatusForwardTo status can't tell us anything about
-				// the health of the subject member, so we ignore it.
-				if mstatus != StatusForwardTo &&
-					!(mstatus == StatusDead && deadNodes.contains(mnode)) {
-
-					UpdateNodeStatus(mnode, mstatus)
-					mnode, _ = AddNode(mnode)
-				}
 			}
 		}
 
