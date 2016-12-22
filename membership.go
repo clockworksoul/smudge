@@ -126,7 +126,7 @@ func Begin() {
 				currentHeartbeat,
 				len(randomAllNodes),
 				announceCount(),
-				forwardCount())
+				pingRequestCount())
 
 			PingNode(node)
 			pingCounter++
@@ -161,7 +161,8 @@ func PingNode(node *Node) error {
  * Private functions (for internal use only)
  *****************************************************************************/
 
-// How many times a node should be broadcast after its status is updated.
+// The number of times any node's new status should be broadcast after changes.
+// Currently set to (lambda * log(node count)).
 func announceCount() int {
 	var count int
 
@@ -177,38 +178,23 @@ func announceCount() int {
 }
 
 func doForwardOnTimeout(pack *pendingAck) {
-	filteredNodes := getTargetNodes(forwardCount(), thisHost, pack.Node)
+	filteredNodes := getTargetNodes(pingRequestCount(), thisHost, pack.node)
 
 	if len(filteredNodes) == 0 {
-		logInfo(thisHost.Address(), "Cannot forward ping request: no more nodes")
+		logDebug(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
-		UpdateNodeStatus(pack.Node, StatusDead)
+		UpdateNodeStatus(pack.node, StatusDead)
 	} else {
 		for i, n := range filteredNodes {
 			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
 				i+1,
 				len(filteredNodes),
-				pack.Node.Address(),
+				pack.node.Address(),
 				n.Address())
 
-			transmitVerbForwardUDP(n, pack.Node, currentHeartbeat)
+			transmitVerbForwardUDP(n, pack.node, currentHeartbeat)
 		}
 	}
-}
-
-// The number of nodes to request a forward of when a PING times out.
-func forwardCount() int {
-	var count int
-
-	if knownNodes.length() > 0 {
-		logn := math.Log(float64(knownNodes.length()))
-
-		mult := (lambda * logn) + 0.5
-
-		count = int(mult)
-	}
-
-	return count
 }
 
 // Returns a random slice of valid ping/forward request targets; i.e., not
@@ -261,6 +247,22 @@ func listenUDP(port int) error {
 	}
 }
 
+// The number of nodes to send a PINGREQ to when a PING times out.
+// Currently set to (lambda * log(node count)).
+func pingRequestCount() int {
+	var count int
+
+	if knownNodes.length() > 0 {
+		logn := math.Log(float64(knownNodes.length()))
+
+		mult := (lambda * logn) + 0.5
+
+		count = int(mult)
+	}
+
+	return count
+}
+
 func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 	msg, err := decodeMessage(addr, msgBytes)
 	if err != nil {
@@ -281,13 +283,13 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 	//   FWD - Forwarding ping (contains origin address)
 	//   NFP - Non-forwarding ping
 	switch msg.verb {
-	case VerbPing:
+	case verbPing:
 		err = receiveVerbPingUDP(msg)
-	case VerbAck:
+	case verbAck:
 		err = receiveVerbAckUDP(msg)
-	case VerbPingRequest:
+	case verbPingRequest:
 		err = receiveVerbForwardUDP(msg)
-	case VerbNonForwardingPing:
+	case verbNonForwardingPing:
 		err = receiveVerbNonForwardPingUDP(msg)
 	}
 
@@ -319,8 +321,8 @@ func receiveVerbAckUDP(msg message) error {
 
 		// If this was a forwarded ping, respond to the callback node
 		if pack, ok := pendingAcks.m[key]; ok {
-			if pack.Callback != nil {
-				go transmitVerbAckUDP(pack.Callback, pack.CallbackCode)
+			if pack.callback != nil {
+				go transmitVerbAckUDP(pack.callback, pack.callbackCode)
 			}
 		}
 
@@ -342,17 +344,18 @@ func receiveVerbForwardUDP(msg message) error {
 		code := member.code
 		key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 
-		pack := pendingAck{Node: node,
-			StartTime:    GetNowInMillis(),
-			Callback:     msg.sender,
-			CallbackCode: code,
+		pack := pendingAck{
+			node:         node,
+			startTime:    GetNowInMillis(),
+			callback:     msg.sender,
+			callbackCode: code,
 			packType:     packNFP}
 
 		pendingAcks.Lock()
 		pendingAcks.m[key] = &pack
 		pendingAcks.Unlock()
 
-		return transmitVerbGenericUDP(node, nil, VerbNonForwardingPing, code)
+		return transmitVerbGenericUDP(node, nil, verbNonForwardingPing, code)
 	}
 
 	return nil
@@ -370,7 +373,7 @@ func startTimeoutCheckLoop() {
 	for {
 		pendingAcks.Lock()
 		for k, pack := range pendingAcks.m {
-			elapsed := pack.Elapsed()
+			elapsed := pack.elapsed()
 
 			if elapsed > timeoutMillis {
 				// If a pending ack has a "downstream" field defined, then
@@ -383,14 +386,14 @@ func startTimeoutCheckLoop() {
 				case packPingReq:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
-					if knownNodes.contains(pack.Node) {
-						UpdateNodeStatus(pack.Callback, StatusDead)
+					if knownNodes.contains(pack.node) {
+						UpdateNodeStatus(pack.callback, StatusDead)
 					}
 				case packNFP:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
-					if knownNodes.contains(pack.Node) {
-						UpdateNodeStatus(pack.Node, StatusDead)
+					if knownNodes.contains(pack.node) {
+						UpdateNodeStatus(pack.node, StatusDead)
 					}
 				}
 
@@ -423,7 +426,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 	}
 
 	// Add members for update.
-	nodes := getRandomUpdatedNodes(forwardCount(), node, thisHost)
+	nodes := getRandomUpdatedNodes(pingRequestCount(), node, thisHost)
 	for _, m := range nodes {
 		msg.addMember(m, m.status, currentHeartbeat)
 	}
@@ -447,34 +450,34 @@ func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 
 	pack := pendingAck{
-		Node:      node,
-		StartTime: GetNowInMillis(),
-		Callback:  downstream,
+		node:      node,
+		startTime: GetNowInMillis(),
+		callback:  downstream,
 		packType:  packPingReq}
 
 	pendingAcks.Lock()
 	pendingAcks.m[key] = &pack
 	pendingAcks.Unlock()
 
-	return transmitVerbGenericUDP(node, downstream, VerbPingRequest, code)
+	return transmitVerbGenericUDP(node, downstream, verbPingRequest, code)
 }
 
 func transmitVerbAckUDP(node *Node, code uint32) error {
-	return transmitVerbGenericUDP(node, nil, VerbAck, code)
+	return transmitVerbGenericUDP(node, nil, verbAck, code)
 }
 
 func transmitVerbPingUDP(node *Node, code uint32) error {
 	key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 	pack := pendingAck{
-		Node:      node,
-		StartTime: GetNowInMillis(),
+		node:      node,
+		startTime: GetNowInMillis(),
 		packType:  packPing}
 
 	pendingAcks.Lock()
 	pendingAcks.m[key] = &pack
 	pendingAcks.Unlock()
 
-	return transmitVerbGenericUDP(node, nil, VerbPing, code)
+	return transmitVerbGenericUDP(node, nil, verbPing, code)
 }
 
 func updateStatusesFromMessage(msg message) {
@@ -510,6 +513,22 @@ func updateStatusesFromMessage(msg message) {
 	}
 }
 
+// pendingAckType represents an expectation of a response to a previously
+// emitted PING, PINGREQ, or NFP.
+type pendingAck struct {
+	startTime    uint32
+	node         *Node
+	callback     *Node
+	callbackCode uint32
+	packType     pendingAckType
+}
+
+func (a *pendingAck) elapsed() uint32 {
+	return GetNowInMillis() - a.startTime
+}
+
+// pendingAckType represents the type of PING that a pendingAckType is waiting
+// for a response for: PING, PINGREQ, or NFP.
 type pendingAckType byte
 
 const (
@@ -529,16 +548,4 @@ func (p pendingAckType) String() string {
 	default:
 		return "UNDEFINED"
 	}
-}
-
-type pendingAck struct {
-	StartTime    uint32
-	Node         *Node
-	Callback     *Node
-	CallbackCode uint32
-	packType     pendingAckType
-}
-
-func (a *pendingAck) Elapsed() uint32 {
-	return GetNowInMillis() - a.StartTime
 }

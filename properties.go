@@ -31,7 +31,7 @@ const (
 	EnvVarHeartbeatMillis = "BLACKFISH_HEARTBEAT_MILLIS"
 
 	// DefaultHeartbeatMillis is the default heartbeat frequency (in millis).
-	DefaultHeartbeatMillis int = 500
+	DefaultHeartbeatMillis int = 250
 
 	// EnvVarListenPort is the name of the environment variable that sets
 	// the UDP listen port.
