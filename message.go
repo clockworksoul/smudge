@@ -193,7 +193,7 @@ func parseMembers(bytes []byte) []*messageMember {
 		// Byte 00 Member status byte
 		mstatus = NodeStatus(bytes[b+0])
 
-		// Bytes 01-04 Originating host IP (FWD only)
+		// Bytes 01-04 memeber IP
 		if bytes[b+1] > 0 {
 			mip = net.IPv4(
 				bytes[b+1],
@@ -202,13 +202,13 @@ func parseMembers(bytes []byte) []*messageMember {
 				bytes[b+4]).To4()
 		}
 
-		// Bytes 05-06 Originating host response port (FWD only)
+		// Bytes 05-06 member response port
 		for i := 6; i >= 5; i-- {
 			mport <<= 8
 			mport |= uint16(bytes[b+i])
 		}
 
-		// Bytes 07-10 Originating message code (FWD only)
+		// Bytes 07-10 member message code
 		for i := 10; i >= 7; i-- {
 			mcode <<= 8
 			mcode |= uint32(bytes[b+i])
@@ -218,11 +218,20 @@ func parseMembers(bytes []byte) []*messageMember {
 			// Find the sender by the address associated with the message
 			mnode = liveNodes.getByIP(mip, mport)
 
-			// We don't know this node, so create a new one!
+			// It's not a living node. Is it among the dead?
+			if mnode == nil {
+				mnode = deadNodes.getByIP(mip, mport)
+			}
+
+			// We still don't know this node, so create a new one!
 			if mnode == nil {
 				mnode, _ = CreateNodeByIP(mip, mport)
 
-				if !(mstatus == StatusDead && deadNodes.contains(mnode)) {
+				// The StatusForwardTo status can't tell us anything about
+				// the health of the subject member, so we ignore it.
+				if mstatus != StatusForwardTo &&
+					!(mstatus == StatusDead && deadNodes.contains(mnode)) {
+
 					UpdateNodeStatus(mnode, mstatus)
 					mnode, _ = AddNode(mnode)
 				}

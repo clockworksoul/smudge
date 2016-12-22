@@ -157,9 +157,9 @@ func (m *nodeMap) length() int {
 }
 
 func (m *nodeMap) keys() []string {
-	keys := make([]string, len(m.nodes))
-
 	m.RLock()
+
+	keys := make([]string, len(m.nodes))
 
 	i := 0
 	for k := range m.nodes {
@@ -173,9 +173,9 @@ func (m *nodeMap) keys() []string {
 }
 
 func (m *nodeMap) values() []*Node {
-	values := make([]*Node, len(m.nodes))
-
 	m.RLock()
+
+	values := make([]*Node, len(m.nodes))
 
 	i := 0
 	for _, v := range m.nodes {

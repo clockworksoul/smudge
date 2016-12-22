@@ -36,17 +36,23 @@ func init() {
 // you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
 	if !liveNodes.contains(node) {
-		logfInfo("Adding host: %s (status=%s)\n", node.Address(), node.status)
-
 		if node.status == StatusUnknown {
-			logWarn(node.Address(), "does not have a status!")
+			logWarn(node.Address(),
+				"does not have a status! Setting to",
+				StatusAlive)
+
+			UpdateNodeStatus(node, StatusAlive)
 		} else if node.status == StatusForwardTo {
-			panic("Invalid status: " + StatusForwardTo.String())
+			panic("invalid status: " + StatusForwardTo.String())
 		}
 
 		node.Touch()
 
 		_, n, err := liveNodes.add(node)
+
+		logfInfo("Adding host: %s (members=%d)\n", node.Address(), liveNodes.length())
+
+		liveNodesModifiedFlag = true
 
 		return n, err
 	}
@@ -103,12 +109,14 @@ func GetLocalIP() (net.IP, error) {
 // live nodes. Updates the node timestamp but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func RemoveNode(node *Node) (*Node, error) {
-	if !liveNodes.contains(node) {
-		logfInfo("Removing host: %s (status=%s)\n", node.Address(), node.status)
-
+	if liveNodes.contains(node) {
 		node.Touch()
 
 		_, n, err := liveNodes.delete(node)
+
+		logfInfo("Removing host: %s (members=%d)\n", node.Address(), liveNodes.length())
+
+		liveNodesModifiedFlag = true
 
 		return n, err
 	}
@@ -149,7 +157,7 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	// Prune nodes with broadcast counters of 0 (or less) from the list
 	for _, n := range updatedNodes.values() {
 		if n.broadcastCounter <= 0 {
-			logInfo("Removing", n.Address(), "from recently updated list")
+			logDebug("Removing", n.Address(), "from recently updated list")
 			updatedNodes.delete(n)
 		}
 	}

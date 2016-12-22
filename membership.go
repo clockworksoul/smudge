@@ -25,6 +25,9 @@ const timeoutMillis uint32 = 150 // TODO Calculate this as the 99th percentile?
  * Exported functions (for public consumption)
  *****************************************************************************/
 
+// This flag is set whenever a live node is added or removed.
+var liveNodesModifiedFlag bool = false
+
 // Begin starts the server by opening a UDP port and beginning the heartbeat.
 // Note that this is a blocking function, so act appropriately.
 func Begin() {
@@ -50,7 +53,6 @@ func Begin() {
 	thisHost = &me
 
 	logInfo("My host address:", thisHostAddress)
-	logInfo("My host:", thisHost)
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
@@ -61,31 +63,43 @@ func Begin() {
 
 	go startTimeoutCheckLoop()
 
+	// Loop over a randomized list of all known nodes (except for this host
+	// node), pinging one at a time. If the liveNodesModifiedFlag is set to
+	// true by AddNode() or RemoveNode(), the we get a fresh list and start
+	// again.
+
 	for {
-		currentHeartbeat++
+		var randomAllNodes = liveNodes.getRandomNodes(0, thisHost)
+		var pingCounter int
 
-		logfDebug("%d - hosts=%d (announce=%d forward=%d [LAMBDA=%.1f])\n",
-			currentHeartbeat,
-			liveNodes.length(),
-			announceCount(),
-			forwardCount(),
-			LAMBDA)
+		for _, node := range randomAllNodes {
+			if node.status == StatusDead {
+				continue
+			}
 
-		// Ping one random node
-		nodes := getTargetNodes(1, thisHost)
+			currentHeartbeat++
 
-		if len(nodes) >= 1 {
-			PingNode(nodes[0])
-		} else {
-			logDebug("No nodes to ping. So lonely. :(")
+			logfDebug("%d - hosts=%d (announce=%d forward=%d)\n",
+				currentHeartbeat,
+				liveNodes.length(),
+				announceCount(),
+				forwardCount())
+
+			PingNode(node)
+			pingCounter++
+
+			time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
+
+			if liveNodesModifiedFlag {
+				liveNodesModifiedFlag = false
+				break
+			}
 		}
 
-		// 1 heartbeat in 10, we resurrect a random dead node
-		// if currentHeartbeat%25 == 0 {
-		// 	ResurrectDeadNode()
-		// }
-
-		time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
+		if pingCounter == 0 {
+			logDebug("No nodes to ping. So lonely. :(")
+			time.Sleep(time.Millisecond * time.Duration(GetHeartbeatMillis()))
+		}
 	}
 }
 
@@ -275,6 +289,8 @@ func receiveVerbAckUDP(msg message) error {
 }
 
 func receiveVerbForwardUDP(msg message) error {
+	// We don't forward to a node that we don't know.
+
 	if len(msg.members) >= 0 &&
 		msg.members[0].status == StatusForwardTo {
 
@@ -321,14 +337,14 @@ func startTimeoutCheckLoop() {
 				switch pack.packType {
 				case packPing:
 					go doForwardOnTimeout(pack)
-				case packForward:
-					logInfo(k, "timed out after", timeoutMillis, "milliseconds")
+				case packPingReq:
+					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
 					if liveNodes.contains(pack.Node) {
 						UpdateNodeStatus(pack.Callback, StatusDead)
 					}
 				case packNFP:
-					logInfo(k, "timed out after", timeoutMillis, "milliseconds")
+					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
 					if liveNodes.contains(pack.Node) {
 						UpdateNodeStatus(pack.Node, StatusDead)
@@ -363,12 +379,8 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 		msg.addMember(forwardTo, StatusForwardTo, code)
 	}
 
-	// Add members for update. If we have nothing in the updated nodes list,
-	// add a random node from the live list.
-	nodes := getRandomUpdatedNodes(forwardCount(), node)
-	if len(nodes) > 0 {
-		nodes = getTargetNodes(forwardCount(), node, thisHost)
-	}
+	// Add members for update.
+	nodes := getRandomUpdatedNodes(forwardCount(), node, thisHost)
 	for _, m := range nodes {
 		msg.addMember(m, m.status, currentHeartbeat)
 	}
@@ -395,7 +407,7 @@ func transmitVerbForwardUDP(node *Node, downstream *Node, code uint32) error {
 		Node:      node,
 		StartTime: GetNowInMillis(),
 		Callback:  downstream,
-		packType:  packForward}
+		packType:  packPingReq}
 
 	pendingAcks.Lock()
 	pendingAcks.m[key] = &pack
@@ -455,7 +467,7 @@ type pendingAckType byte
 
 const (
 	packPing pendingAckType = iota
-	packForward
+	packPingReq
 	packNFP
 )
 
@@ -463,8 +475,8 @@ func (p pendingAckType) String() string {
 	switch p {
 	case packPing:
 		return "PING"
-	case packForward:
-		return "FWD"
+	case packPingReq:
+		return "PINGREQ"
 	case packNFP:
 		return "NFP"
 	default:
