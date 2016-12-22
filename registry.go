@@ -38,10 +38,10 @@ func AddNode(node *Node) (*Node, error) {
 	if !liveNodes.contains(node) {
 		logfInfo("Adding host: %s (status=%s)\n", node.Address(), node.status)
 
-		if node.status == STATUS_NONE {
+		if node.status == StatusNone {
 			logWarn(node.Address(), "does not have a status!")
-		} else if node.status == STATUS_FORWARD_TO {
-			panic("Invalid status: " + STATUS_FORWARD_TO.String())
+		} else if node.status == StatusForwardTo {
+			panic("Invalid status: " + StatusForwardTo.String())
 		}
 
 		node.Touch()
@@ -49,9 +49,9 @@ func AddNode(node *Node) (*Node, error) {
 		_, n, err := liveNodes.add(node)
 
 		return n, err
-	} else {
-		return node, nil
 	}
+
+	return node, nil
 }
 
 // Given a node address ("ip:port" string), creates and returns a new node
@@ -109,9 +109,9 @@ func RemoveNode(node *Node) (*Node, error) {
 		_, n, err := liveNodes.delete(node)
 
 		return n, err
-	} else {
-		return node, nil
 	}
+
+	return node, nil
 }
 
 // Assigns a new status for the specified node, and adds that node to the
@@ -122,7 +122,7 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		n.status = status
 		n.broadcastCounter = byte(announceCount())
 
-		if n.status == STATUS_DIED {
+		if n.status == StatusDead {
 			logfInfo("Node removed: %s\n", n.Address())
 
 			RemoveNode(n)
@@ -154,7 +154,7 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 
 	// Make a copy of the recently update nodes slice
 
-	updated_copy := updatedNodes.values()
+	updatedCopy := updatedNodes.values()
 
 	// Exclude the exclusions
 	// TODO This is stupid inefficient. Use a set implementation of
@@ -162,15 +162,15 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 
 Outer:
 	for _, nout := range exclude {
-		for i, nin := range updated_copy {
+		for i, nin := range updatedCopy {
 			if nout.Address() == nin.Address() {
-				tmp := updated_copy[0:i]
+				tmp := updatedCopy[0:i]
 
-				for j := i + 1; j < len(updated_copy); j++ {
-					tmp = append(tmp, updated_copy[j])
+				for j := i + 1; j < len(updatedCopy); j++ {
+					tmp = append(tmp, updatedCopy[j])
 				}
 
-				updated_copy = tmp
+				updatedCopy = tmp
 
 				continue Outer
 			}
@@ -179,18 +179,18 @@ Outer:
 
 	// Shuffle the copy
 
-	for i := range updated_copy {
+	for i := range updatedCopy {
 		j := rand.Intn(i + 1)
-		updated_copy[i], updated_copy[j] = updated_copy[j], updated_copy[i]
+		updatedCopy[i], updatedCopy[j] = updatedCopy[j], updatedCopy[i]
 	}
 
 	// Grab and return the top N
 
-	if size > len(updated_copy) {
-		size = len(updated_copy)
+	if size > len(updatedCopy) {
+		size = len(updatedCopy)
 	}
 
-	return updated_copy[:size]
+	return updatedCopy[:size]
 }
 
 func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {

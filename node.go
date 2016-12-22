@@ -16,6 +16,9 @@ type Node struct {
 	broadcastCounter byte
 }
 
+// Returns the address for this node in string format, which is simply the
+// node's local IP and listen port. This is used as a unique identifier
+// throughout the code base.
 func (n *Node) Address() string {
 	if n.address == "" {
 		n.address = fmt.Sprintf("%s:%d", n.ip.String(), n.port)
@@ -60,6 +63,7 @@ func (n *Node) Touch() {
 	n.timestamp = GetNowInMillis()
 }
 
+// The current local time in milliseconds since the epoch.
 func GetNowInMillis() uint32 {
 	return uint32(time.Now().UnixNano() / int64(time.Millisecond))
 }

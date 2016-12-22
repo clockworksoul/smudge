@@ -118,7 +118,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	// Bytes 14-17 Member message code
 
 	// Bytes 00    Verb (one of {P|A|F|N})
-	var verb messageVerb = messageVerb(bytes[0] & byte(0x03))
+	verb := messageVerb(bytes[0] & byte(0x03))
 
 	// Bytes 01-02 Sender response port
 	var senderPort uint16
@@ -128,10 +128,10 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Bytes 03-06 Sender ID Code
-	var sender_code uint32
+	var senderCode uint32
 	for i := 6; i >= 3; i-- {
-		sender_code <<= 8
-		sender_code |= uint32(bytes[i])
+		senderCode <<= 8
+		senderCode |= uint32(bytes[i])
 	}
 
 	// Now that we have the IP and port, we can find the Node.
@@ -143,7 +143,7 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
-	m := newMessage(verb, sender, sender_code)
+	m := newMessage(verb, sender, senderCode)
 
 	// Byte 00 also contains the number of piggybacked messages
 	// in the leftmost 6 bits
@@ -159,11 +159,11 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 // If members exist on this message, and that message has the "forward to"
 // status, this function returns it; otherwise it returns nil.
 func (m *message) getForwardTo() *messageMember {
-	if len(m.members) > 0 && m.members[0].status == STATUS_FORWARD_TO {
+	if len(m.members) > 0 && m.members[0].status == StatusForwardTo {
 		return m.members[0]
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 // Convenience function. Creates a new message instance.
@@ -222,7 +222,7 @@ func parseMembers(bytes []byte) []*messageMember {
 			if mnode == nil {
 				mnode, _ = CreateNodeByIP(mip, mport)
 
-				if !(mstatus == STATUS_DIED && deadNodes.contains(mnode)) {
+				if !(mstatus == StatusDead && deadNodes.contains(mnode)) {
 					UpdateNodeStatus(mnode, mstatus)
 					mnode, _ = AddNode(mnode)
 				}

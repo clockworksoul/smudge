@@ -6,44 +6,47 @@ import (
 	"time"
 )
 
+// The enumerated type representing logging levels, to be used as a parameter
+// to the SetLogThreshhold() function.
 type LogLevel byte
 
 const (
-	LOG_ALL LogLevel = iota
-	LOG_TRACE
-	LOG_DEBUG
-	LOG_INFO
-	LOG_WARN
-	LOG_ERROR
-	LOG_FATAL
-	LOG_OFF
+	LogAll LogLevel = iota
+	LogTrace
+	LogDebug
+	LogInfo
+	LogWarn
+	LogError
+	LogFatal
+	LogOff
 )
 
-var logThreshhold LogLevel = LOG_INFO
+var logThreshhold LogLevel = LogInfo
 
 func (s LogLevel) String() string {
 	switch s {
-	case LOG_ALL:
-		return "ALL"
-	case LOG_TRACE:
-		return "TRACE"
-	case LOG_DEBUG:
-		return "DEBUG"
-	case LOG_INFO:
-		return "INFO"
-	case LOG_WARN:
-		return "WARN"
-	case LOG_ERROR:
-		return "ERROR"
-	case LOG_FATAL:
-		return "FATAL"
-	case LOG_OFF:
-		return "OFF"
+	case LogAll:
+		return "All"
+	case LogTrace:
+		return "Trace"
+	case LogDebug:
+		return "Debug"
+	case LogInfo:
+		return "Info"
+	case LogWarn:
+		return "Warn"
+	case LogError:
+		return "Error"
+	case LogFatal:
+		return "Fatal"
+	case LogOff:
+		return "Off"
 	default:
-		return "UNKNOWN"
+		return "Unknown"
 	}
 }
 
+// Allows the output noise level to be adjusted by setting the logging threshhold.
 func SetLogThreshhold(level LogLevel) {
 	logThreshhold = level
 }
@@ -59,63 +62,63 @@ func log(level LogLevel, a ...interface{}) (n int, err error) {
 		fmt.Fprint(os.Stdout, prefix(level)+" ")
 
 		return fmt.Fprintln(os.Stdout, a...)
-	} else {
-		return 0, nil
 	}
+
+	return 0, nil
 }
 
 func logTrace(a ...interface{}) (n int, err error) {
-	return log(LOG_TRACE, a...)
+	return log(LogTrace, a...)
 }
 
 func logDebug(a ...interface{}) (n int, err error) {
-	return log(LOG_DEBUG, a...)
+	return log(LogDebug, a...)
 }
 
 func logInfo(a ...interface{}) (n int, err error) {
-	return log(LOG_INFO, a...)
+	return log(LogInfo, a...)
 }
 
 func logWarn(a ...interface{}) (n int, err error) {
-	return log(LOG_WARN, a...)
+	return log(LogWarn, a...)
 }
 
 func logError(a ...interface{}) (n int, err error) {
-	return log(LOG_ERROR, a...)
+	return log(LogError, a...)
 }
 
 func logFatal(a ...interface{}) (n int, err error) {
-	return log(LOG_FATAL, a...)
+	return log(LogFatal, a...)
 }
 
 func logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
 		return fmt.Fprintf(os.Stdout, prefix(level)+" "+format, a...)
-	} else {
-		return 0, nil
 	}
+
+	return 0, nil
 }
 
 func logfTrace(format string, a ...interface{}) (n int, err error) {
-	return logf(LOG_TRACE, format, a...)
+	return logf(LogTrace, format, a...)
 }
 
 func logfDebug(format string, a ...interface{}) (n int, err error) {
-	return logf(LOG_DEBUG, format, a...)
+	return logf(LogDebug, format, a...)
 }
 
 func logfInfo(format string, a ...interface{}) (n int, err error) {
-	return logf(LOG_INFO, format, a...)
+	return logf(LogInfo, format, a...)
 }
 
 func logfWarn(format string, a ...interface{}) (n int, err error) {
-	return logf(LOG_WARN, format, a...)
+	return logf(LogWarn, format, a...)
 }
 
 func logfError(format string, a ...interface{}) (n int, err error) {
-	return logf(LOG_ERROR, format, a...)
+	return logf(LogError, format, a...)
 }
 
 func logfFatal(format string, a ...interface{}) (n int, err error) {
-	return logf(LOG_FATAL, format, a...)
+	return logf(LogFatal, format, a...)
 }

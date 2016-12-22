@@ -104,9 +104,9 @@ func (m *nodeMap) getRandomNode(exclude ...*Node) *Node {
 		// Okay, get a random index, and return the appropriate *Node
 		i := rand.Intn(len(filtered))
 		return m.nodes[filtered[i]]
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 // Returns a slice of Node[] of from 0 to len(nodes) nodes.
@@ -130,7 +130,7 @@ func (m *nodeMap) getRandomNodes(size int, exclude ...*Node) []*Node {
 
 	// Horribly inefficient. Fix this later.
 
-	var c int = 0
+	var c int
 Outer:
 	for _, n := range allNodes {
 		// Is the node in the excluded list?

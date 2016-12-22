@@ -1,5 +1,6 @@
 package blackfish
 
+// The interface
 type StatusListener interface {
 	OnChange(node *Node, status NodeStatus)
 }
