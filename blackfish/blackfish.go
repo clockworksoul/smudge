@@ -9,12 +9,12 @@ import (
 func main() {
 	var nodeAddress string
 	var heartbeatMillis int
-	var listen_port int
+	var listenPort int
 	var err error
 
 	flag.StringVar(&nodeAddress, "node", "", "Initial node")
 
-	flag.IntVar(&listen_port, "port",
+	flag.IntVar(&listenPort, "port",
 		int(blackfish.GetListenPort()),
 		"The bind port")
 
@@ -25,7 +25,7 @@ func main() {
 	flag.Parse()
 
 	blackfish.SetLogThreshold(blackfish.LogDebug)
-	blackfish.SetListenPort(listen_port)
+	blackfish.SetListenPort(listenPort)
 	blackfish.SetHeartbeatMillis(heartbeatMillis)
 
 	if nodeAddress != "" {

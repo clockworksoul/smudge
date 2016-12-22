@@ -8,9 +8,6 @@ import (
 	"strings"
 )
 
-// A scalar value used to calculate a variety of limits
-const LAMBDA = 2.5
-
 // All known nodes, living and dead. Dead nodes are pinged (far) less often,
 // and are eventually removed
 var knownNodes = nodeMap{}

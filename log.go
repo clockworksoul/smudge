@@ -61,7 +61,7 @@ func (s LogLevel) String() string {
 	}
 }
 
-// SetLogThreshhold allows the output noise level to be adjusted by setting
+// SetLogThreshold allows the output noise level to be adjusted by setting
 // the logging priority threshold.
 func SetLogThreshold(level LogLevel) {
 	logThreshhold = level

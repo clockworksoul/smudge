@@ -21,6 +21,9 @@ var thisHost *Node
 
 const timeoutMillis uint32 = 150 // TODO Calculate this as the 99th percentile?
 
+// A scalar value used to calculate a variety of limits
+const lambda = 2.5
+
 /******************************************************************************
  * Exported functions (for public consumption)
  *****************************************************************************/
@@ -149,7 +152,7 @@ func announceCount() int {
 	if knownNodes.length() > 0 {
 		logn := math.Log(float64(knownNodes.length()))
 
-		mult := (LAMBDA * logn) + 0.5
+		mult := (lambda * logn) + 0.5
 
 		count = int(mult)
 	}
@@ -184,7 +187,7 @@ func forwardCount() int {
 	if knownNodes.length() > 0 {
 		logn := math.Log(float64(knownNodes.length()))
 
-		mult := (LAMBDA * logn) + 0.5
+		mult := (lambda * logn) + 0.5
 
 		count = int(mult)
 	}
