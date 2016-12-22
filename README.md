@@ -1,8 +1,10 @@
 # Blackfish: A minimalist membership and failure detector  
 
-Blackfish is a Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
+Blackfish is a Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for node membership status dissemination and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
 
 It was conceived with a space-sensitive systems (mobile, IOT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set it relatively small and limited to functionality around adding and removing nodes and detecting status changes on the cluster.
+
+Complete documentation is available from [the associated Godoc](https://godoc.org/github.com/ClockworkSoul/blackfish).
 
 ### Features
 
@@ -14,11 +16,11 @@ It was conceived with a space-sensitive systems (mobile, IOT, containers) in min
 
 #### Coming soon!
 
-* Support for multicast detection
-* Re-try of lost nodes (with exponential backoff)
-* Adaptive timeouts (defined as the 99th percentile of all recently seen responses; currently hard-coded at 150ms)
+* Support for multicast announcement and recruitment.
+* Periodic re-try of lost nodes (with exponential backoff).
+* Adaptive timeouts (defined as the 99th percentile of all recently seen responses; currently hard-coded at 150ms).
 
-### Variations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
+### Deviations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
 * If a node has no status change updates to transmit, it will instead choose a random node from its "known nodes" list.
 
@@ -76,7 +78,9 @@ func main() {
 ```
 
 
-#### Adding a remote node to the "known nodes" list
+#### Adding a new member to the "known nodes" list
+
+Adding a new member to your known nodes list will also make that node aware of the adding server. Note that because this package doesn't yet support multicast notifications, at this time to join an existing cluster you must use this method to add at least one of its healthy member nodes.
 
 ```
 node, err := blackfish.CreateNodeByAddress("localhost:10000")
@@ -120,8 +124,8 @@ func main() {
 	// Add the listener
 	blackfish.AddStatusListener(MyListener{})
 
-	// Add a new remote node. Currently, to add an existing cluster at least
-	// one node must be known.
+	// Add a new remote node. Currently, to join an existing cluster you must
+	// add at least one of its healthy member nodes.
 	node, err := blackfish.CreateNodeByAddress("localhost:10000")
 	if err == nil {
 		blackfish.AddNode(node)
