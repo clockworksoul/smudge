@@ -6,18 +6,33 @@ import (
 	"time"
 )
 
-// The enumerated type representing logging levels, to be used as a parameter
-// to the SetLogThreshhold() function.
+// LogLevel represents a logging levels to be used as a parameter passed to
+// the SetLogThreshhold() function.
 type LogLevel byte
 
 const (
+	// LogAll allows all log output of all levels to be emitted.
 	LogAll LogLevel = iota
+
+	// LogTrace restricts log output to trace level and above.
 	LogTrace
+
+	// LogDebug restricts log output to debug level and above.
 	LogDebug
+
+	// LogInfo restricts log output to info level and above.
 	LogInfo
+
+	// LogWarn restricts log output to warn level and above.
 	LogWarn
+
+	// LogError restricts log output to error level and above.
 	LogError
+
+	// LogFatal restricts log output to fatal level.
 	LogFatal
+
+	// LogOff prevents all log output entirely.
 	LogOff
 )
 

@@ -59,7 +59,7 @@ func (n *Node) Timestamp() uint32 {
 	return n.timestamp
 }
 
-// Toucb updates the timestamp to the local time in milliseconds.
+// Touch updates the timestamp to the local time in milliseconds.
 func (n *Node) Touch() {
 	n.timestamp = GetNowInMillis()
 }

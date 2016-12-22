@@ -10,12 +10,18 @@ import (
 // default values if not set.
 
 const (
-	// The default heartbeat frequency in milliseconds for each node.
-	EnvVarHeartbeatMillis      = "BLACKFISH_HEARTBEAT_MILLIS"
+	// EnvVarHeartbeatMillis is the name of the environment variable that
+	// sets the heartbeat frequency (in millis).
+	EnvVarHeartbeatMillis = "BLACKFISH_HEARTBEAT_MILLIS"
+
+	// DefaultHeartbeatMillis is the default heartbeat frequency (in millis).
 	DefaultHeartbeatMillis int = 500
 
-	// The port to listen on by default.
-	EnvVarListenPort      = "BLACKFISH_LISTEN_PORT"
+	// EnvVarHeartbeatMillis is the name of the environment variable that sets
+	// the UDP listen port.
+	EnvVarListenPort = "BLACKFISH_LISTEN_PORT"
+
+	// DefaultListenPort is the default UDP listen port.
 	DefaultListenPort int = 9999
 )
 
@@ -23,7 +29,7 @@ var heartbeatMillis int
 
 var listenPort int
 
-// The port to listen on.
+// GetListenPort returns the port that this host will listen on.
 func GetListenPort() int {
 	if listenPort == 0 {
 		listenPort = getIntVar(EnvVarListenPort, DefaultListenPort)
@@ -32,7 +38,8 @@ func GetListenPort() int {
 	return listenPort
 }
 
-// The port to listen on.
+// SetListenPort sets the UDP port to listen on. It has no effect once
+// Begin() has been called.
 func SetListenPort(p int) {
 	if p == 0 {
 		listenPort = DefaultListenPort
@@ -41,7 +48,7 @@ func SetListenPort(p int) {
 	}
 }
 
-// The heartbeat frequency in milliseconds for each node.
+// GetHeartbeatMillis gets this host's heartbeat frequency in milliseconds.
 func GetHeartbeatMillis() int {
 	if heartbeatMillis == 0 {
 		heartbeatMillis = getIntVar(EnvVarHeartbeatMillis, DefaultHeartbeatMillis)
@@ -50,7 +57,9 @@ func GetHeartbeatMillis() int {
 	return heartbeatMillis
 }
 
-// The heartbeat frequency in milliseconds for each node.
+// SetHeartbeatMillis sets this nodes heartbeat frequency. Unlike
+// SetListenPort(), calling this function after Begin() has been called will
+// have an effect.
 func SetHeartbeatMillis(val int) {
 	heartbeatMillis = val
 }

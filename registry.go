@@ -12,14 +12,14 @@ import (
 const LAMBDA = 2.5
 
 // Currenty active nodes
-var liveNodes nodeMap = nodeMap{}
+var liveNodes = nodeMap{}
 
 // Recently dead nodes. Periodically a random dead node will be allowed to
 // rejoin the living
-var deadNodes nodeMap = nodeMap{}
+var deadNodes = nodeMap{}
 
 // All nodes that have been updated "recently", living and dead
-var updatedNodes nodeMap = nodeMap{}
+var updatedNodes = nodeMap{}
 
 func init() {
 	liveNodes.init()
@@ -31,14 +31,14 @@ func init() {
  * Exported functions (for public consumption)
  *****************************************************************************/
 
-// Adds a node. Returns node, error.
-// Updates node heartbeat in the process, but DOES NOT implicitly update the
-// node's status; you need to do this explicitly.
+// AddNode can be used to explicity add a node to the list of known live nodes.
+// Updates the node timestamp but DOES NOT implicitly update the node's status;
+// you need to do this explicitly.
 func AddNode(node *Node) (*Node, error) {
 	if !liveNodes.contains(node) {
 		logfInfo("Adding host: %s (status=%s)\n", node.Address(), node.status)
 
-		if node.status == StatusNone {
+		if node.status == StatusUnknown {
 			logWarn(node.Address(), "does not have a status!")
 		} else if node.status == StatusForwardTo {
 			panic("Invalid status: " + StatusForwardTo.String())
@@ -54,8 +54,9 @@ func AddNode(node *Node) (*Node, error) {
 	return node, nil
 }
 
-// Given a node address ("ip:port" string), creates and returns a new node
-// instance.
+// CreateNodeByAddress will create and return a new node when supplied with a
+// node address ("ip:port" string). This doesn't add the node to the list of
+// live nodes; use AddNode().
 func CreateNodeByAddress(address string) (*Node, error) {
 	ip, port, err := parseNodeAddress(address)
 
@@ -68,15 +69,16 @@ func CreateNodeByAddress(address string) (*Node, error) {
 	return nil, err
 }
 
-// Given a node address IP address and port, this function creates and returns
-// a new node instance.
+// CreateNodeByAddress will create and return a new node when supplied with an
+// IP address and port number. This doesn't add the node to the list of live
+// nodes; use AddNode().
 func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
 	return &Node{ip: ip, port: port, timestamp: GetNowInMillis()}, nil
 }
 
-// Queries the host interface to determine the local IPv4 of this machine. If
-// a local IPv4 cannot be found, then nil is returned. If the query to the
-// underlying OS fails, an error is returned.
+// GetLocalIP queries the host interface to determine the local IPv4 of this
+// machine. If a local IPv4 cannot be found, then nil is returned. If the
+// query to the underlying OS fails, an error is returned.
 func GetLocalIP() (net.IP, error) {
 	var ip net.IP
 
@@ -97,8 +99,8 @@ func GetLocalIP() (net.IP, error) {
 	return ip, nil
 }
 
-// Removes a node. Returns node, error.
-// Updates node heartbeat in the process, but DOES NOT implicitly update the
+// RemoveNode can be used to explicity remove a node from the list of known
+// live nodes. Updates the node timestamp but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
 func RemoveNode(node *Node) (*Node, error) {
 	if !liveNodes.contains(node) {
@@ -114,8 +116,9 @@ func RemoveNode(node *Node) (*Node, error) {
 	return node, nil
 }
 
-// Assigns a new status for the specified node, and adds that node to the
-// updatedNodes list.
+// UpdateNodeStatus assigns a new status for the specified node and adds it to
+// the list of recently updated nodes. If the status is StatusDead, then the
+// node will be moved from the live nodes list to the dead nodes list.
 func UpdateNodeStatus(n *Node, status NodeStatus) {
 	if n.status != status {
 		n.timestamp = GetNowInMillis()
@@ -130,7 +133,6 @@ func UpdateNodeStatus(n *Node, status NodeStatus) {
 		}
 
 		// If this isn't in the recently updated list, add it.
-
 		if !updatedNodes.contains(n) {
 			updatedNodes.add(n)
 		}
