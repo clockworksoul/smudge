@@ -106,10 +106,10 @@ func (m MyListener) OnChange(node *blackfish.Node, status blackfish.NodeStatus) 
 
 func main() {
 	heartbeatMillis := 500
-	listen_port := 9999
+	listenPort := 9999
 
 	// Set configuration options
-	blackfish.SetListenPort(listen_port)
+	blackfish.SetListenPort(listenPort)
 	blackfish.SetHeartbeatMillis(heartbeatMillis)
 
 	// Add the listener
