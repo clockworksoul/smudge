@@ -24,6 +24,13 @@ import (
 	"time"
 )
 
+// A scalar value used to calculate a variety of limits
+const lambda = 2.5
+
+// How many standard deviations beyond the mean PING/ACK response time we
+// allow before timing out an ACK.
+const timeoutToleranceSigmas = 3.0
+
 var currentHeartbeat uint32
 
 var pendingAcks = struct {
@@ -35,17 +42,14 @@ var thisHostAddress string
 
 var thisHost *Node
 
-const timeoutMillis uint32 = 150 // TODO Calculate this as the 99th percentile?
+// This flag is set whenever a known node is added or removed.
+var knownNodesModifiedFlag = false
 
-// A scalar value used to calculate a variety of limits
-const lambda = 2.5
+var pingdata = newPingData(150, 50)
 
 /******************************************************************************
  * Exported functions (for public consumption)
  *****************************************************************************/
-
-// This flag is set whenever a known node is added or removed.
-var knownNodesModifiedFlag = false
 
 // Begin starts the server by opening a UDP port and beginning the heartbeat.
 // Note that this is a blocking function, so act appropriately.
@@ -299,16 +303,18 @@ func receiveVerbAckUDP(msg message) error {
 	pendingAcks.RUnlock()
 
 	if ok {
-		// TODO Keep statistics on response times
-
 		msg.sender.Touch()
 
 		pendingAcks.Lock()
 
-		// If this was a forwarded ping, respond to the callback node
 		if pack, ok := pendingAcks.m[key]; ok {
+			// If this is a response to a requested ping, respond to the
+			// callback node
 			if pack.callback != nil {
 				go transmitVerbAckUDP(pack.callback, pack.callbackCode)
+			} else {
+				// Note the ping response time.
+				notePingResponseTime(pack)
 			}
 		}
 
@@ -317,6 +323,25 @@ func receiveVerbAckUDP(msg message) error {
 	}
 
 	return nil
+}
+
+func notePingResponseTime(pack *pendingAck) {
+	// Note the elapsed time
+	elapsedMillis := pack.elapsed()
+	if elapsedMillis < 1 {
+		elapsedMillis = 1
+	}
+
+	pingdata.add(elapsedMillis)
+
+	mean, stddev := pingdata.data()
+	sigmas := pingdata.nSigma(timeoutToleranceSigmas)
+
+	logfTrace("Got ACK in %dms (mean=%.02f stddev=%.02f sigmas=%.02f)\n",
+		elapsedMillis,
+		mean,
+		stddev,
+		sigmas)
 }
 
 func receiveVerbForwardUDP(msg message) error {
@@ -360,12 +385,17 @@ func startTimeoutCheckLoop() {
 		pendingAcks.Lock()
 		for k, pack := range pendingAcks.m {
 			elapsed := pack.elapsed()
+			timeoutMillis := uint32(pingdata.nSigma(timeoutToleranceSigmas))
 
+			// Ping requests are expected to take quite a bit longer.
+			// Just call it 2x for now.
+			if pack.packType == packPingReq {
+				timeoutMillis *= 2
+			}
+
+			// This pending ACK has taken longer than expected. Mark it as
+			// timed out.
 			if elapsed > timeoutMillis {
-				// If a pending ack has a "downstream" field defined, then
-				// it's the result of a NFP and we don't forward it. If it
-				// isn't defined, we forward this request to a random host.
-
 				switch pack.packType {
 				case packPing:
 					go doForwardOnTimeout(pack)
@@ -388,7 +418,7 @@ func startTimeoutCheckLoop() {
 		}
 		pendingAcks.Unlock()
 
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(time.Millisecond * 100)
 	}
 }
 
