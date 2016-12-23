@@ -17,6 +17,7 @@ limitations under the License.
 package smudge
 
 import (
+	"errors"
 	"net"
 )
 
@@ -132,6 +133,16 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	// Bytes 08-11 Member host IP
 	// Bytes 12-13 Member host response port
 	// Bytes 14-17 Member message code
+
+	if (len(bytes)-7)%11 != 0 {
+		logfWarn("Inconsistent byte count received from %v: %d MOD 11 = %d\n",
+			addr.IP,
+			len(bytes),
+			len(bytes)%11)
+
+		return newMessage(255, nil, 0),
+			errors.New("unexpected byte length received in message")
+	}
 
 	// Bytes 00    Verb (one of {P|A|F|N})
 	verb := messageVerb(bytes[0] & byte(0x03))

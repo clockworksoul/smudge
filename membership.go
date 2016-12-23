@@ -238,7 +238,7 @@ func listenUDP(port int) error {
 		go func(addr *net.UDPAddr, msg []byte) {
 			err = receiveMessageUDP(addr, buf[0:n])
 			if err != nil {
-				logInfo(err)
+				logError(err)
 			}
 		}(addr, buf[0:n])
 	}
