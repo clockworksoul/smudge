@@ -498,12 +498,6 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 
 func updateStatusesFromMessage(msg message) {
 	for _, m := range msg.members {
-		// logfDebug("Member update (%d/%d): %s is now status %s\n",
-		// 	i+1,
-		// 	len(msg.members),
-		// 	m.node.Address(),
-		// 	m.status)
-
 		switch m.status {
 		case StatusForwardTo:
 			// The FORWARD_TO status isn't useful here, so we ignore those
