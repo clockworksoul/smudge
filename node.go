@@ -29,7 +29,7 @@ type Node struct {
 	timestamp        uint32
 	address          string
 	status           NodeStatus
-	broadcastCounter byte
+	broadcastCounter int8
 }
 
 // Address rReturns the address for this node in string format, which is simply
@@ -50,7 +50,7 @@ func (n *Node) Age() uint32 {
 
 // BroadcastCounter returns the number of times remaining that current status
 // will be broadcast by this node to other nodes.
-func (n *Node) BroadcastCounter() byte {
+func (n *Node) BroadcastCounter() int8 {
 	return n.broadcastCounter
 }
 

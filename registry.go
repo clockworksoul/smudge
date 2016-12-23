@@ -18,8 +18,8 @@ package blackfish
 
 import (
 	"errors"
-	"math/rand"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -152,7 +152,7 @@ func UpdateNodeStatus(node *Node, status NodeStatus) {
 	if node.status != status {
 		node.timestamp = GetNowInMillis()
 		node.status = status
-		node.broadcastCounter = byte(announceCount())
+		node.broadcastCounter = int8(announceCount())
 
 		// If this isn't in the recently updated list, add it.
 		if !updatedNodes.contains(node) {
@@ -212,15 +212,10 @@ Outer:
 		}
 	}
 
-	// Shuffle the copy
-
-	for i := range updatedCopy {
-		j := rand.Intn(i + 1)
-		updatedCopy[i], updatedCopy[j] = updatedCopy[j], updatedCopy[i]
-	}
+	// Put the newest nodes on top.
+	sort.Sort(byBroadcastCounter(updatedCopy))
 
 	// Grab and return the top N
-
 	if size > len(updatedCopy) {
 		size = len(updatedCopy)
 	}
@@ -277,4 +272,20 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 type deadNodeCounter struct {
 	retry          int
 	retryCountdown int
+}
+
+// byBroadcastCounter implements sort.Interface for []*Node based on
+// the broadcastCounter field.
+type byBroadcastCounter []*Node
+
+func (a byBroadcastCounter) Len() int {
+	return len(a)
+}
+
+func (a byBroadcastCounter) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a byBroadcastCounter) Less(i, j int) bool {
+	return a[i].broadcastCounter > a[j].broadcastCounter
 }

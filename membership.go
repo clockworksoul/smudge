@@ -164,17 +164,10 @@ func PingNode(node *Node) error {
 // The number of times any node's new status should be broadcast after changes.
 // Currently set to (lambda * log(node count)).
 func announceCount() int {
-	var count int
+	logn := math.Log(float64(knownNodes.length()))
+	mult := (lambda * logn) + 0.5
 
-	if knownNodes.length() > 0 {
-		logn := math.Log(float64(knownNodes.length()))
-
-		mult := (lambda * logn) + 0.5
-
-		count = int(mult)
-	}
-
-	return count
+	return int(mult)
 }
 
 func doForwardOnTimeout(pack *pendingAck) {
@@ -250,17 +243,10 @@ func listenUDP(port int) error {
 // The number of nodes to send a PINGREQ to when a PING times out.
 // Currently set to (lambda * log(node count)).
 func pingRequestCount() int {
-	var count int
+	logn := math.Log(float64(knownNodes.length()))
+	mult := (lambda * logn) + 0.5
 
-	if knownNodes.length() > 0 {
-		logn := math.Log(float64(knownNodes.length()))
-
-		mult := (lambda * logn) + 0.5
-
-		count = int(mult)
-	}
-
-	return count
+	return int(mult)
 }
 
 func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
