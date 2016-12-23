@@ -180,11 +180,11 @@ func UpdateNodeStatus(node *Node, status NodeStatus) {
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	updatedNodesCopy := nodeMap{}
+	updatedNodesCopy.init()
 
 	// Prune nodes with broadcast counters of 0 (or less) from the map. Any
 	// others we copy into a secondary nodemap.
-	updatedNodes.Lock()
-	for _, n := range updatedNodes.nodes {
+	for _, n := range updatedNodes.values() {
 		if n.broadcastCounter <= 0 {
 			logDebug("Removing", n.Address(), "from recently updated list")
 			updatedNodes.delete(n)
@@ -192,7 +192,6 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 			updatedNodesCopy.add(n)
 		}
 	}
-	updatedNodes.Unlock()
 
 	// Exclude the exclusions
 	for _, ex := range exclude {
