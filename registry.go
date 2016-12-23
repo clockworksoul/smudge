@@ -179,48 +179,36 @@ func UpdateNodeStatus(node *Node, status NodeStatus) {
  *****************************************************************************/
 
 func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
-	// Prune nodes with broadcast counters of 0 (or less) from the list
-	for _, n := range updatedNodes.values() {
+	updatedNodesCopy := nodeMap{}
+
+	// Prune nodes with broadcast counters of 0 (or less) from the map. Any
+	// others we copy into a secondary nodemap.
+	updatedNodes.Lock()
+	for _, n := range updatedNodes.nodes {
 		if n.broadcastCounter <= 0 {
 			logDebug("Removing", n.Address(), "from recently updated list")
 			updatedNodes.delete(n)
+		} else {
+			updatedNodesCopy.add(n)
 		}
 	}
-
-	// Make a copy of the recently update nodes slice
-
-	updatedCopy := updatedNodes.values()
+	updatedNodes.Unlock()
 
 	// Exclude the exclusions
-	// TODO This is stupid inefficient. Use a set implementation of
-	// some kind instead.
-
-Outer:
-	for _, nout := range exclude {
-		for i, nin := range updatedCopy {
-			if nout.Address() == nin.Address() {
-				tmp := updatedCopy[0:i]
-
-				for j := i + 1; j < len(updatedCopy); j++ {
-					tmp = append(tmp, updatedCopy[j])
-				}
-
-				updatedCopy = tmp
-
-				continue Outer
-			}
-		}
+	for _, ex := range exclude {
+		updatedNodesCopy.delete(ex)
 	}
 
 	// Put the newest nodes on top.
-	sort.Sort(byBroadcastCounter(updatedCopy))
+	updatedNodesSlice := updatedNodesCopy.values()
+	sort.Sort(byBroadcastCounter(updatedNodesSlice))
 
 	// Grab and return the top N
-	if size > len(updatedCopy) {
-		size = len(updatedCopy)
+	if size > len(updatedNodesSlice) {
+		size = len(updatedNodesSlice)
 	}
 
-	return updatedCopy[:size]
+	return updatedNodesSlice[:size]
 }
 
 func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
