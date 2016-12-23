@@ -1,7 +1,7 @@
 FROM scratch
 
-COPY tmp/blackfish /blackfish
+COPY tmp/smudge /smudge
 
 EXPOSE 9999
 
-CMD ["/blackfish"]
+CMD ["/smudge"]

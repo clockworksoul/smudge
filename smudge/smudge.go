@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Blackfish Authors.
+Copyright 2015 The Smudge Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"blackfish"
 	"flag"
 	"fmt"
+	"smudge"
 )
 
 func main() {
@@ -31,30 +31,30 @@ func main() {
 	flag.StringVar(&nodeAddress, "node", "", "Initial node")
 
 	flag.IntVar(&listenPort, "port",
-		int(blackfish.GetListenPort()),
+		int(smudge.GetListenPort()),
 		"The bind port")
 
 	flag.IntVar(&heartbeatMillis, "hbf",
-		int(blackfish.GetHeartbeatMillis()),
+		int(smudge.GetHeartbeatMillis()),
 		"The heartbeat frequency in milliseconds")
 
 	flag.Parse()
 
-	blackfish.SetLogThreshold(blackfish.LogInfo)
+	smudge.SetLogThreshold(smudge.LogInfo)
 
-	blackfish.SetListenPort(listenPort)
-	blackfish.SetHeartbeatMillis(heartbeatMillis)
+	smudge.SetListenPort(listenPort)
+	smudge.SetHeartbeatMillis(heartbeatMillis)
 
 	if nodeAddress != "" {
-		node, err := blackfish.CreateNodeByAddress(nodeAddress)
+		node, err := smudge.CreateNodeByAddress(nodeAddress)
 
 		if err == nil {
-			blackfish.AddNode(node)
+			smudge.AddNode(node)
 		}
 	}
 
 	if err == nil {
-		blackfish.Begin()
+		smudge.Begin()
 	} else {
 		fmt.Println(err)
 	}
