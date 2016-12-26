@@ -37,8 +37,8 @@ The following variables and their default values are as follows:
 ```
 Variable                   | Default | Description
 -------------------------- | ------- | -------------------------------
-SMUDGE_HEARTBEAT_MILLIS |     500 | Milliseconds between heartbeats
-SMUDGE_LISTEN_PORT      |    9999 | UDP port to listen on 
+SMUDGE_HEARTBEAT_MILLIS    |     500 | Milliseconds between heartbeats
+SMUDGE_LISTEN_PORT         |    9999 | UDP port to listen on 
 ```
 
 ### Configuring the node with environment variables
