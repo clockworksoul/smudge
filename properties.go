@@ -28,14 +28,14 @@ import (
 const (
 	// EnvVarHeartbeatMillis is the name of the environment variable that
 	// sets the heartbeat frequency (in millis).
-	EnvVarHeartbeatMillis = "BLACKFISH_HEARTBEAT_MILLIS"
+	EnvVarHeartbeatMillis = "SMUDGE_HEARTBEAT_MILLIS"
 
 	// DefaultHeartbeatMillis is the default heartbeat frequency (in millis).
 	DefaultHeartbeatMillis int = 250
 
 	// EnvVarListenPort is the name of the environment variable that sets
 	// the UDP listen port.
-	EnvVarListenPort = "BLACKFISH_LISTEN_PORT"
+	EnvVarListenPort = "SMUDGE_LISTEN_PORT"
 
 	// DefaultListenPort is the default UDP listen port.
 	DefaultListenPort int = 9999
