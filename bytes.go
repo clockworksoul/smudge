@@ -24,6 +24,16 @@ limitations under the License.
 
 package smudge
 
+func decodeByte(bytes []byte, startIndex int) (byte, int) {
+	return bytes[startIndex], startIndex + 1
+}
+
+func decodeUint8(bytes []byte, startIndex int) (uint8, int) {
+	n, i := decodeByte(bytes, startIndex)
+
+	return byte(n), i
+}
+
 func decodeUint16(bytes []byte, startIndex int) (uint16, int) {
 	var number uint16 = 0
 
@@ -57,6 +67,16 @@ func decodeUint64(bytes []byte, startIndex int) (uint64, int) {
 		uint64(bytes[startIndex+0])
 
 	return number, startIndex + 8
+}
+
+func encodeByte(number byte, bytes []byte, startIndex int) int {
+	bytes[startIndex+0] = number
+
+	return 1
+}
+
+func encodeUint8(number uint8, bytes []byte, startIndex int) int {
+	return encodeByte(byte(number), bytes, startIndex)
 }
 
 func encodeUint16(number uint16, bytes []byte, startIndex int) int {

@@ -60,8 +60,8 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	}
 
 	// Bytes 00    Verb (one of {P|A|F|N})
-	verb := messageVerb(bytes[p])
-	p++
+	v, p := decodeByte(bytes, p)
+	verb := messageVerb(v)
 
 	// Bytes 01-02 Sender response port
 	senderPort, p := decodeUint16(bytes, p)
@@ -198,8 +198,7 @@ func (m *message) encode() []byte {
 
 	// Bytes 00    Verb (one of {P|A|F|N})
 	// Translation: the first character of the message verb
-	bytes[p] = byte(m.verb)
-	p++
+	p += encodeByte(byte(m.verb), bytes, p)
 
 	// Bytes 01-02 Sender response port
 	p += encodeUint16(m.sender.port, bytes, p)
