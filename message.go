@@ -26,15 +26,18 @@ import (
 // If the address:port from the message can't be associated with a known
 // (live) node, then the value of message.sender will be nil.
 func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
-	// Message contents (byte, content)
-	// Bytes Content
-	// Bytes 00    Verb (one of {P|A|F|N})
-	// Bytes 01-02 Sender response port
-	// Bytes 03-06 Sender ID Code
-	// Bytes 07    Member status byte
-	// Bytes 08-11 Member host IP
-	// Bytes 12-13 Member host response port
-	// Bytes 14-17 Member message code
+	// Message contents
+	// Bytes       Content
+	// ------------------------
+	// Bytes 00-03 Checksum (32-bit)
+	// Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
+	// Bytes 05-06 Sender response port
+	// Bytes 07-10 Sender ID Code
+	// Bytes 11    Member status byte
+	// ---[ Per member ]---
+	// Bytes 12-15 Member host IP
+	// Bytes 16-17 Member host response port
+	// Bytes 18-21 Member message code
 
 	// An index pointer
 	p := 0
@@ -173,16 +176,18 @@ func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
 	m.members = append(m.members, &messageMember)
 }
 
-// Message contents (byte, content)
-// Bytes Content
-// Bytes 00    Verb (one of {P|A|F|N})
-// Bytes 01-02 Sender response port
-// Bytes 03-06 Sender ID Code
-// ---
-// Bytes 07    Member status byte
-// Bytes 08-11 Member host IP
-// Bytes 12-13 Member host response port
-// Bytes 14-17 Member message code
+// Message contents
+// Bytes       Content
+// ------------------------
+// Bytes 00-03 Checksum (32-bit)
+// Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
+// Bytes 05-06 Sender response port
+// Bytes 07-10 Sender ID Code
+// Bytes 11    Member status byte
+// ---[ Per member ]---
+// Bytes 12-15 Member host IP
+// Bytes 16-17 Member host response port
+// Bytes 18-21 Member message code
 
 func (m *message) encode() []byte {
 	size := 11 + (len(m.members) * 11)
