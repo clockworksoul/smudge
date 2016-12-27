@@ -18,6 +18,7 @@ package smudge
 
 import (
 	"errors"
+	"hash/adler32"
 	"net"
 )
 
@@ -35,7 +36,10 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	// Bytes 12-13 Member host response port
 	// Bytes 14-17 Member message code
 
-	if (len(bytes)-7)%11 != 0 {
+	// An index pointer
+	p := 0
+
+	if (len(bytes)-11)%11 != 0 {
 		logfWarn("Inconsistent byte count received from %v: %d MOD 11 = %d\n",
 			addr.IP,
 			len(bytes),
@@ -45,8 +49,12 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 			errors.New("unexpected byte length received in message")
 	}
 
-	// An index pointer
-	p := 0
+	checksumStated, p := decodeUint32(bytes, p)
+	checksumCalculated := adler32.Checksum(bytes[4:])
+	if checksumCalculated != checksumStated {
+		return newMessage(255, nil, 0),
+			errors.New("checksum failure from " + addr.IP.String())
+	}
 
 	// Bytes 00    Verb (one of {P|A|F|N})
 	verb := messageVerb(bytes[p])
@@ -70,10 +78,70 @@ func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
 	m := newMessage(verb, sender, senderCode)
 
 	if len(bytes) > p {
-		m.members = parseMembers(bytes[p:])
+		m.members = decodeMembers(bytes[p:])
 	}
 
 	return m, nil
+}
+
+func decodeMembers(bytes []byte) []*messageMember {
+	// Bytes 00    Member status byte
+	// Bytes 01-04 Member host IP
+	// Bytes 05-06 Member host response port
+	// Bytes 07-10 Member message code
+
+	members := make([]*messageMember, 0, 1)
+
+	// An index pointer
+	p := 0
+
+	for p < len(bytes) {
+		var mstatus NodeStatus
+		var mip net.IP
+		var mport uint16
+		var mcode uint32
+		var mnode *Node
+
+		// Byte 00 Member status byte
+		mstatus = NodeStatus(bytes[p])
+		p++
+
+		// Bytes 01-04 member IP
+		if bytes[p] > 0 {
+			mip = net.IPv4(
+				bytes[p+0],
+				bytes[p+1],
+				bytes[p+2],
+				bytes[p+3]).To4()
+		}
+		p += 4
+
+		// Bytes 05-06 member response port
+		mport, p = decodeUint16(bytes, p)
+
+		// Bytes 07-10 member message code
+		mcode, p = decodeUint32(bytes, p)
+
+		if len(mip) > 0 {
+			// Find the sender by the address associated with the message
+			mnode = knownNodes.getByIP(mip, mport)
+
+			// We still don't know this node, so create a new one!
+			if mnode == nil {
+				mnode, _ = CreateNodeByIP(mip, mport)
+			}
+		}
+
+		member := messageMember{
+			code:   mcode,
+			node:   mnode,
+			status: mstatus,
+		}
+
+		members = append(members, &member)
+	}
+
+	return members
 }
 
 func decodeUint16(bytes []byte, startIndex int) (uint16, int) {
@@ -149,66 +217,6 @@ func newMessage(verb messageVerb, sender *Node, code uint32) message {
 	}
 }
 
-func parseMembers(bytes []byte) []*messageMember {
-	// Bytes 00    Member status byte
-	// Bytes 01-04 Member host IP
-	// Bytes 05-06 Member host response port
-	// Bytes 07-10 Member message code
-
-	members := make([]*messageMember, 0, 1)
-
-	// An index pointer
-	p := 0
-
-	for p < len(bytes) {
-		var mstatus NodeStatus
-		var mip net.IP
-		var mport uint16
-		var mcode uint32
-		var mnode *Node
-
-		// Byte 00 Member status byte
-		mstatus = NodeStatus(bytes[p])
-		p++
-
-		// Bytes 01-04 member IP
-		if bytes[p] > 0 {
-			mip = net.IPv4(
-				bytes[p+0],
-				bytes[p+1],
-				bytes[p+2],
-				bytes[p+3]).To4()
-		}
-		p += 4
-
-		// Bytes 05-06 member response port
-		mport, p = decodeUint16(bytes, p)
-
-		// Bytes 07-10 member message code
-		mcode, p = decodeUint32(bytes, p)
-
-		if len(mip) > 0 {
-			// Find the sender by the address associated with the message
-			mnode = knownNodes.getByIP(mip, mport)
-
-			// We still don't know this node, so create a new one!
-			if mnode == nil {
-				mnode, _ = CreateNodeByIP(mip, mport)
-			}
-		}
-
-		member := messageMember{
-			code:   mcode,
-			node:   mnode,
-			status: mstatus,
-		}
-
-		members = append(members, &member)
-	}
-
-	return members
-}
-
 type message struct {
 	sender     *Node
 	senderCode uint32
@@ -241,11 +249,11 @@ func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
 // Bytes 14-17 Member message code
 
 func (m *message) encode() []byte {
-	size := 7 + (len(m.members) * 11)
+	size := 11 + (len(m.members) * 11)
 	bytes := make([]byte, size, size)
 
-	// An index pointer
-	p := 0
+	// An index pointer (start at 4 to accomodate checksum)
+	p := 4
 
 	// Bytes 00    Verb (one of {P|A|F|N})
 	// Translation: the first character of the message verb
@@ -271,7 +279,7 @@ func (m *message) encode() []byte {
 		// Bytes (p + 01) to (p + 04): Originating host IP
 		ipb := mnode.ip
 		for i := 0; i < 4; i++ {
-			bytes[p+1+i] = ipb[i]
+			bytes[p+i] = ipb[i]
 		}
 		p += 4
 
@@ -281,6 +289,9 @@ func (m *message) encode() []byte {
 		// Bytes (p + 07) to (p + 10): Originating message code
 		p += encodeUint32(mcode, bytes, p)
 	}
+
+	checksum := adler32.Checksum(bytes[4:])
+	encodeUint32(checksum, bytes, 0)
 
 	return bytes
 }
