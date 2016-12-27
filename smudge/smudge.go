@@ -19,7 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"smudge"
+	"github.com/ClockworkSoul/smudge"
 )
 
 func main() {

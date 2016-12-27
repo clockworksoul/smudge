@@ -3,6 +3,9 @@ language: go
 go:
   - 1.7.x
 
+install:
+  - go get github.com/ClockworkSoul/smudge
+
 script: 
   go test ./...
   go build ./...
