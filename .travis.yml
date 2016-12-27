@@ -6,6 +6,3 @@ go:
 install:
   - go get github.com/ClockworkSoul/smudge
 
-script: 
-  go test ./...
-  go build ./...
