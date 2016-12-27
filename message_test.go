@@ -26,9 +26,9 @@ func TestEncodeDecodeUint16A(t *testing.T) {
 
 	encodeUint16(initial, bytes, 0)
 
-	backAgain := decodeUint16(bytes, 0)
+	backAgain, p := decodeUint16(bytes, 0)
 
-	if len(bytes) != 2 {
+	if p != 2 {
 		t.Fail()
 	}
 
@@ -43,9 +43,9 @@ func TestEncodeDecodeUint16B(t *testing.T) {
 
 	encodeUint16(initial, bytes, 0)
 
-	backAgain := decodeUint16(bytes, 0)
+	backAgain, p := decodeUint16(bytes, 0)
 
-	if len(bytes) != 2 {
+	if p != 2 {
 		t.Fail()
 	}
 
@@ -60,9 +60,9 @@ func TestEncodeDecodeUint16C(t *testing.T) {
 
 	encodeUint16(initial, bytes, 0)
 
-	backAgain := decodeUint16(bytes, 0)
+	backAgain, p := decodeUint16(bytes, 0)
 
-	if len(bytes) != 2 {
+	if p != 2 {
 		t.Fail()
 	}
 
@@ -77,9 +77,9 @@ func TestEncodeDecodeUint16D(t *testing.T) {
 
 	encodeUint16(initial, bytes, 0)
 
-	backAgain := decodeUint16(bytes, 0)
+	backAgain, p := decodeUint16(bytes, 0)
 
-	if len(bytes) != 2 {
+	if p != 2 {
 		t.Fail()
 	}
 
@@ -94,9 +94,9 @@ func TestEncodeDecodeUint32A(t *testing.T) {
 
 	encodeUint32(initial, bytes, 0)
 
-	backAgain := decodeUint32(bytes, 0)
+	backAgain, p := decodeUint32(bytes, 0)
 
-	if len(bytes) != 4 {
+	if p != 4 {
 		t.Fail()
 	}
 
@@ -111,9 +111,9 @@ func TestEncodeDecodeUint32B(t *testing.T) {
 
 	encodeUint32(initial, bytes, 0)
 
-	backAgain := decodeUint32(bytes, 0)
+	backAgain, p := decodeUint32(bytes, 0)
 
-	if len(bytes) != 4 {
+	if p != 4 {
 		t.Fail()
 	}
 
@@ -128,9 +128,9 @@ func TestEncodeDecodeUint32C(t *testing.T) {
 
 	encodeUint32(initial, bytes, 0)
 
-	backAgain := decodeUint32(bytes, 0)
+	backAgain, p := decodeUint32(bytes, 0)
 
-	if len(bytes) != 4 {
+	if p != 4 {
 		t.Fail()
 	}
 
@@ -145,9 +145,9 @@ func TestEncodeDecodeUint32D(t *testing.T) {
 
 	encodeUint32(initial, bytes, 0)
 
-	backAgain := decodeUint32(bytes, 0)
+	backAgain, p := decodeUint32(bytes, 0)
 
-	if len(bytes) != 4 {
+	if p != 4 {
 		t.Fail()
 	}
 
@@ -162,9 +162,9 @@ func TestEncodeDecodeUint64A(t *testing.T) {
 
 	encodeUint64(initial, bytes, 0)
 
-	backAgain := decodeUint64(bytes, 0)
+	backAgain, p := decodeUint64(bytes, 0)
 
-	if len(bytes) != 8 {
+	if p != 8 {
 		t.Fail()
 	}
 
@@ -179,9 +179,9 @@ func TestEncodeDecodeUint64B(t *testing.T) {
 
 	encodeUint64(initial, bytes, 0)
 
-	backAgain := decodeUint64(bytes, 0)
+	backAgain, p := decodeUint64(bytes, 0)
 
-	if len(bytes) != 8 {
+	if p != 8 {
 		t.Fail()
 	}
 
@@ -196,9 +196,9 @@ func TestEncodeDecodeUint64C(t *testing.T) {
 
 	encodeUint64(initial, bytes, 0)
 
-	backAgain := decodeUint64(bytes, 0)
+	backAgain, p := decodeUint64(bytes, 0)
 
-	if len(bytes) != 8 {
+	if p != 8 {
 		t.Fail()
 	}
 
@@ -213,9 +213,9 @@ func TestEncodeDecodeUint64D(t *testing.T) {
 
 	encodeUint64(initial, bytes, 0)
 
-	backAgain := decodeUint64(bytes, 0)
+	backAgain, p := decodeUint64(bytes, 0)
 
-	if len(bytes) != 8 {
+	if p != 8 {
 		t.Fail()
 	}
 
