@@ -4,5 +4,5 @@ go:
   - 1.7.x
 
 install:
-  - go get github.com/ClockworkSoul/smudge
+  - go get github.com/clockworksoul/smudge
 
