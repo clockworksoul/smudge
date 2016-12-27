@@ -1,6 +1,7 @@
 # Smudge
 
 [![GoDoc](https://godoc.org/github.com/ClockworkSoul/smudge?status.svg)](https://godoc.org/github.com/ClockworkSoul/smudge)
+[![Build Status](https://travis-ci.org/ClockworkSoul/smudge.svg?branch=master)](https://travis-ci.org/ClockworkSoul/smudge)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ClockworkSoul/smudge)](https://goreportcard.com/report/github.com/ClockworkSoul/smudge)
 
 ## Introduction 
