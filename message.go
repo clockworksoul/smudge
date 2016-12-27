@@ -188,7 +188,7 @@ func (m *message) encode() []byte {
 	size := 11 + (len(m.members) * 11)
 	bytes := make([]byte, size, size)
 
-	// An index pointer (start at 4 to accomodate checksum)
+	// An index pointer (start at 4 to accommodate checksum)
 	p := 4
 
 	// Bytes 00    Verb (one of {P|A|F|N})
