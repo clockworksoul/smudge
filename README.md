@@ -95,7 +95,7 @@ Simply call: `smudge.Begin()`
 ```
 package main
 
-import "smudge"
+import "github.com/clockworksoul/smudge"
 import "fmt"
 
 type MyListener struct {
