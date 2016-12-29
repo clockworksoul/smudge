@@ -7,9 +7,9 @@
 ## Introduction 
 Smudge is a minimalist Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for cluster node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
 
-Smudge is distinct among SWIM implementations in that in addition to its membership status functions it also allows the transmission of broadcasts to all present healthy members containing a small amount (256 bytes) of arbitrary content.
+Smudge also extends the standard SWIM protocol so that in addition to the standard membership status functionality it also allows the transmission of broadcasts containing a small amount (256 bytes) of arbitrary content to all present healthy members. 
 
-It was conceived with a space-sensitive systems (mobile, IOT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set is relatively small and limited to functionality around adding and removing nodes and detecting status changes on the cluster.
+Smudge was conceived with a space-sensitive systems (mobile, IOT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set is relatively small and limited to functionality around adding and removing nodes and detecting status changes on the cluster.
 
 Complete documentation is available from [the associated Godoc](https://godoc.org/github.com/clockworksoul/smudge).
 
