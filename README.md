@@ -4,7 +4,7 @@
 [![Build Status](https://travis-ci.org/clockworksoul/smudge.svg?branch=master)](https://travis-ci.org/clockworksoul/smudge)
 [![Go Report Card](https://goreportcard.com/badge/github.com/clockworksoul/smudge)](https://goreportcard.com/report/github.com/clockworksoul/smudge)
 
-<img style="float: right; margin: 2px;" src="https://github.com/clockworksoul/smudge/raw/master/logo/logo.png" width="150">
+<img src="https://github.com/clockworksoul/smudge/raw/master/logo/logo.png" width="150">
 
 ## Introduction 
 Smudge is a minimalist Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for cluster node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
