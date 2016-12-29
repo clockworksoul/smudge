@@ -129,7 +129,7 @@ func Begin() {
 			logfDebug("%d - hosts=%d (announce=%d forward=%d)\n",
 				currentHeartbeat,
 				len(randomAllNodes),
-				announceCount(),
+				emitCount(),
 				pingRequestCount())
 
 			PingNode(node)
@@ -165,9 +165,9 @@ func PingNode(node *Node) error {
  * Private functions (for internal use only)
  *****************************************************************************/
 
-// The number of times any node's new status should be broadcast after changes.
+// The number of times any node's new status should be emitted after changes.
 // Currently set to (lambda * log(node count)).
-func announceCount() int {
+func emitCount() int {
 	logn := math.Log(float64(knownNodes.length()))
 	mult := (lambda * logn) + 0.5
 
@@ -254,7 +254,7 @@ func pingRequestCount() int {
 }
 
 func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
-	msg, err := decodeMessage(addr, msgBytes)
+	msg, err := decodeMessage(addr.IP, msgBytes)
 	if err != nil {
 		return err
 	}
@@ -265,6 +265,8 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 		msg.senderCode)
 
 	updateStatusesFromMessage(msg)
+
+	receiveBroadcast(msg.broadcast)
 
 	// Handle the verb. Each verb is three characters, and is one of the
 	// following:
@@ -447,6 +449,18 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 		msg.addMember(m, m.status, currentHeartbeat)
 	}
 
+	// Emit counters for broadcasts can be less than 0. We transmit positive
+	// numbers, and decrement all the others. At some value < 0, the broadcast
+	// is removed from the map all together.
+	broadcast := getBroadcastToEmit()
+	if broadcast != nil {
+		if broadcast.emitCounter > 0 {
+			msg.addBroadcast(broadcast)
+		}
+
+		broadcast.emitCounter--
+	}
+
 	_, err = c.Write(msg.encode())
 	if err != nil {
 		return err
@@ -454,7 +468,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 
 	// Decrement the update counters on those nodes
 	for _, m := range msg.members {
-		m.node.broadcastCounter--
+		m.node.emitCounter--
 	}
 
 	logfTrace("Sent %v to %v\n", verb, node.Address())

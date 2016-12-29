@@ -35,7 +35,7 @@ func decodeUint8(bytes []byte, startIndex int) (uint8, int) {
 }
 
 func decodeUint16(bytes []byte, startIndex int) (uint16, int) {
-	var number uint16 = 0
+	var number uint16
 
 	number = uint16(bytes[startIndex+1])<<8 |
 		uint16(bytes[startIndex+0])
@@ -44,7 +44,7 @@ func decodeUint16(bytes []byte, startIndex int) (uint16, int) {
 }
 
 func decodeUint32(bytes []byte, startIndex int) (uint32, int) {
-	var number uint32 = 0
+	var number uint32
 
 	number = uint32(bytes[startIndex+3])<<24 |
 		uint32(bytes[startIndex+2])<<16 |
@@ -55,7 +55,7 @@ func decodeUint32(bytes []byte, startIndex int) (uint32, int) {
 }
 
 func decodeUint64(bytes []byte, startIndex int) (uint64, int) {
-	var number uint64 = 0
+	var number uint64
 
 	number = uint64(bytes[startIndex+7])<<56 |
 		uint64(bytes[startIndex+6])<<48 |

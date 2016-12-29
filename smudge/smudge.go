@@ -41,7 +41,6 @@ func main() {
 	flag.Parse()
 
 	smudge.SetLogThreshold(smudge.LogInfo)
-
 	smudge.SetListenPort(listenPort)
 	smudge.SetHeartbeatMillis(heartbeatMillis)
 

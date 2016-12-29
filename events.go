@@ -16,6 +16,32 @@ limitations under the License.
 
 package smudge
 
+var broadcastListeners = make([]BroadcastListener, 0, 16)
+
+var statusListeners = make([]StatusListener, 0, 16)
+
+// BroadcastListener is the interface that must be implemented to take advantage
+// of the cluster member status update notification functionality provided by
+// the AddBroadcastListener() function.
+type BroadcastListener interface {
+	// The OnChange() function is called whenever the node is notified of any
+	// change in the status of a cluster member.
+	OnBroadcast(broadcast *Broadcast)
+}
+
+// AddBroadcastListener allows the submission of a BroadcastListener implementation
+// whose OnChange() function will be called whenever the node is notified of any
+// change in the status of a cluster member.
+func AddBroadcastListener(listener BroadcastListener) {
+	broadcastListeners = append(broadcastListeners, listener)
+}
+
+func doBroadcastUpdate(broadcast *Broadcast) {
+	for _, sl := range broadcastListeners {
+		sl.OnBroadcast(broadcast)
+	}
+}
+
 // StatusListener is the interface that must be implemented to take advantage
 // of the cluster member status update notification functionality provided by
 // the AddStatusListener() function.
@@ -24,8 +50,6 @@ type StatusListener interface {
 	// change in the status of a cluster member.
 	OnChange(node *Node, status NodeStatus)
 }
-
-var statusListeners = make([]StatusListener, 0, 16)
 
 // AddStatusListener allows the submission of a StatusListener implementation
 // whose OnChange() function will be called whenever the node is notified of any

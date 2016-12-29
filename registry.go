@@ -122,6 +122,28 @@ func GetLocalIP() (net.IP, error) {
 	return ip, nil
 }
 
+// AllNodes will return a list of all nodes known at the time of the request,
+// including nodes that have been marked as "dead" but haven't yet been
+// removed from the registry.
+func AllNodes() []*Node {
+	return knownNodes.values()
+}
+
+// HealthyNodes will return a list of all nodes known at the time of the
+// request with a healthy status.
+func HealthyNodes() []*Node {
+	values := knownNodes.values()
+	filtered := make([]*Node, 0, len(values))
+
+	for _, v := range values {
+		if v.Status() == StatusAlive {
+			filtered = append(filtered, v)
+		}
+	}
+
+	return filtered
+}
+
 // RemoveNode can be used to explicitly remove a node from the list of known
 // live nodes. Updates the node timestamp but DOES NOT implicitly update the
 // node's status; you need to do this explicitly.
@@ -152,7 +174,7 @@ func UpdateNodeStatus(node *Node, status NodeStatus) {
 	if node.status != status {
 		node.timestamp = GetNowInMillis()
 		node.status = status
-		node.broadcastCounter = int8(announceCount())
+		node.emitCounter = int8(emitCount())
 
 		// If this isn't in the recently updated list, add it.
 		if !updatedNodes.contains(node) {
@@ -182,10 +204,10 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 	updatedNodesCopy := nodeMap{}
 	updatedNodesCopy.init()
 
-	// Prune nodes with broadcast counters of 0 (or less) from the map. Any
+	// Prune nodes with emit counters of 0 (or less) from the map. Any
 	// others we copy into a secondary nodemap.
 	for _, n := range updatedNodes.values() {
-		if n.broadcastCounter <= 0 {
+		if n.emitCounter <= 0 {
 			logDebug("Removing", n.Address(), "from recently updated list")
 			updatedNodes.delete(n)
 		} else {
@@ -200,7 +222,7 @@ func getRandomUpdatedNodes(size int, exclude ...*Node) []*Node {
 
 	// Put the newest nodes on top.
 	updatedNodesSlice := updatedNodesCopy.values()
-	sort.Sort(byBroadcastCounter(updatedNodesSlice))
+	sort.Sort(byNodeEmitCounter(updatedNodesSlice))
 
 	// Grab and return the top N
 	if size > len(updatedNodesSlice) {
@@ -261,18 +283,18 @@ type deadNodeCounter struct {
 	retryCountdown int
 }
 
-// byBroadcastCounter implements sort.Interface for []*Node based on
-// the broadcastCounter field.
-type byBroadcastCounter []*Node
+// byNodeEmitCounter implements sort.Interface for []*Node based on
+// the emitCounter field.
+type byNodeEmitCounter []*Node
 
-func (a byBroadcastCounter) Len() int {
+func (a byNodeEmitCounter) Len() int {
 	return len(a)
 }
 
-func (a byBroadcastCounter) Swap(i, j int) {
+func (a byNodeEmitCounter) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-func (a byBroadcastCounter) Less(i, j int) bool {
-	return a[i].broadcastCounter > a[j].broadcastCounter
+func (a byNodeEmitCounter) Less(i, j int) bool {
+	return a[i].emitCounter > a[j].emitCounter
 }

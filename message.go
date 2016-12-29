@@ -22,72 +22,207 @@ import (
 	"net"
 )
 
+// Message contents
+// ---[ Base message (12 bytes)]---
+// Bytes 00-03 Checksum (32-bit)
+// Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
+// Bytes 05-06 Sender response port
+// Bytes 07-10 Sender ID Code
+// ---[ Per member (11 bytes)]---
+// Bytes 00    Member status byte
+// Bytes 01-04 Member host IP
+// Bytes 05-06 Member host response port
+// Bytes 07-10 Member message code
+
+type message struct {
+	sender     *Node
+	senderCode uint32
+	verb       messageVerb
+	members    []*messageMember
+	broadcast  *Broadcast
+}
+
+// Represents a "member" of a message; i.e., a node that the sender knows
+// about, about which it wishes to notify the downstream recipient.
+type messageMember struct {
+	code   uint32
+	node   *Node
+	status NodeStatus
+}
+
+// Convenience function. Creates a new message instance.
+func newMessage(verb messageVerb, sender *Node, code uint32) message {
+	return message{
+		sender:     sender,
+		senderCode: code,
+		verb:       verb,
+	}
+}
+
+func (m *message) addBroadcast(broadcast *Broadcast) {
+	m.broadcast = broadcast
+}
+
+func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
+	if m.members == nil {
+		m.members = make([]*messageMember, 0, 32)
+	}
+
+	messageMember := messageMember{
+		code:   code,
+		node:   n,
+		status: status}
+
+	m.members = append(m.members, &messageMember)
+}
+
+// Message contents
+// ---[ Base message (12 bytes)]---
+// Bytes 00-03 Checksum (32-bit)
+// Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
+// Bytes 05-06 Sender response port
+// Bytes 07-10 Sender ID Code
+// ---[ Per member (11 bytes)]---
+// Bytes 00    Member status byte
+// Bytes 01-04 Member host IP
+// Bytes 05-06 Member host response port
+// Bytes 07-10 Member message code
+
+func (m *message) encode() []byte {
+	size := 11 + (len(m.members) * 11)
+	if m.broadcast != nil {
+		size += 12 + len(m.broadcast.bytes)
+	}
+
+	bytes := make([]byte, size, size)
+
+	// An index pointer (start at 4 to accommodate checksum)
+	p := 4
+
+	// Bytes 00    Verb (one of {P|A|F|N})
+	verbByte := byte(len(m.members))
+	verbByte = (verbByte << 2) | byte(m.verb)
+	p += encodeByte(verbByte, bytes, p)
+
+	// Bytes 01-02 Sender response port
+	p += encodeUint16(m.sender.port, bytes, p)
+
+	// Bytes 03-06 ID Code
+	p += encodeUint32(m.senderCode, bytes, p)
+
+	// Each member data requires 11 bytes.
+	for _, member := range m.members {
+		mnode := member.node
+		mstatus := member.status
+		mcode := member.code
+
+		// Byte p + 00
+		bytes[p] = byte(mstatus)
+		p++
+
+		// Bytes (p + 01) to (p + 04): Originating host IP
+		ipb := mnode.ip
+		for i := 0; i < 4; i++ {
+			bytes[p+i] = ipb[i]
+		}
+		p += 4
+
+		// Bytes (p + 05) to (p + 06): Originating host response port
+		p += encodeUint16(mnode.port, bytes, p)
+
+		// Bytes (p + 07) to (p + 10): Originating message code
+		p += encodeUint32(mcode, bytes, p)
+	}
+
+	if m.broadcast != nil {
+		bbytes := m.broadcast.encode()
+		for i, v := range bbytes {
+			bytes[p+i] = v
+		}
+	}
+
+	checksum := adler32.Checksum(bytes[4:])
+	encodeUint32(checksum, bytes, 0)
+
+	return bytes
+}
+
+// If members exist on this message, and that message has the "forward to"
+// status, this function returns it; otherwise it returns nil.
+func (m *message) getForwardTo() *messageMember {
+	if len(m.members) > 0 && m.members[0].status == StatusForwardTo {
+		return m.members[0]
+	}
+
+	return nil
+}
+
 // Parses the bytes received in a UDP message.
 // If the address:port from the message can't be associated with a known
 // (live) node, then the value of message.sender will be nil.
-func decodeMessage(addr *net.UDPAddr, bytes []byte) (message, error) {
-	// Message contents
-	// Bytes       Content
-	// ------------------------
-	// Bytes 00-03 Checksum (32-bit)
-	// Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
-	// Bytes 05-06 Sender response port
-	// Bytes 07-10 Sender ID Code
-	// Bytes 11    Member status byte
-	// ---[ Per member ]---
-	// Bytes 12-15 Member host IP
-	// Bytes 16-17 Member host response port
-	// Bytes 18-21 Member message code
+func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
+	var err error
 
 	// An index pointer
 	p := 0
 
-	if (len(bytes)-11)%11 != 0 {
-		logfWarn("Inconsistent byte count received from %v: %d MOD 11 = %d\n",
-			addr.IP,
-			len(bytes),
-			len(bytes)%11)
-
-		return newMessage(255, nil, 0),
-			errors.New("unexpected byte length received in message")
-	}
-
+	// Bytes 00-03 Checksum (32-bit)
 	checksumStated, p := decodeUint32(bytes, p)
 	checksumCalculated := adler32.Checksum(bytes[4:])
 	if checksumCalculated != checksumStated {
 		return newMessage(255, nil, 0),
-			errors.New("checksum failure from " + addr.IP.String())
+			errors.New("checksum failure from " + sourceIP.String())
 	}
 
-	// Bytes 00    Verb (one of {P|A|F|N})
+	// Bytes 04    Verb (one of {P|A|F|N})
 	v, p := decodeByte(bytes, p)
-	verb := messageVerb(v)
+	verb := messageVerb(v & 0x03)
 
-	// Bytes 01-02 Sender response port
+	memberCount := int(v >> 2)
+
+	// Bytes 05-06 Sender response port
 	senderPort, p := decodeUint16(bytes, p)
 
-	// Bytes 03-06 Sender ID Code
+	// Bytes 07-10 Sender ID Code
 	senderCode, p := decodeUint32(bytes, p)
 
 	// Now that we have the IP and port, we can find the Node.
-	sender := knownNodes.getByIP(addr.IP.To4(), senderPort)
+	sender := knownNodes.getByIP(sourceIP.To4(), senderPort)
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
-		sender, _ = CreateNodeByIP(addr.IP.To4(), senderPort)
+		sender, _ = CreateNodeByIP(sourceIP.To4(), senderPort)
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
 	m := newMessage(verb, sender, senderCode)
 
+	memberLastIndex := p + (memberCount * 11)
 	if len(bytes) > p {
-		m.members = decodeMembers(bytes[p:])
+		m.members = decodeMembers(memberCount, bytes[p:memberLastIndex])
 	}
 
-	return m, nil
+	if len(bytes) > memberLastIndex {
+		m.broadcast, err = decodeBroadcast(bytes[memberLastIndex:])
+
+		if m.broadcast.origin.IP()[0] == 0 || m.broadcast.origin.Port() == 0 {
+			logWarn("Received originless broadcast")
+
+			logWarn("Origin:", *sender)
+			logWarn("Member count:", memberCount)
+			logWarn("len(bytes):", len(bytes))
+			logWarn("memberLastIndex: ", memberLastIndex)
+			logWarn("BytesPre:", bytes)
+			logWarn("BytesSum:", bytes[p:memberLastIndex])
+
+			panic("Broadcast: " + m.broadcast.Label())
+		}
+	}
+
+	return m, err
 }
 
-func decodeMembers(bytes []byte) []*messageMember {
+func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 	// Bytes 00    Member status byte
 	// Bytes 01-04 Member host IP
 	// Bytes 05-06 Member host response port
@@ -145,111 +280,4 @@ func decodeMembers(bytes []byte) []*messageMember {
 	}
 
 	return members
-}
-
-// Convenience function. Creates a new message instance.
-func newMessage(verb messageVerb, sender *Node, code uint32) message {
-	return message{
-		sender:     sender,
-		senderCode: code,
-		verb:       verb,
-	}
-}
-
-type message struct {
-	sender     *Node
-	senderCode uint32
-	verb       messageVerb
-	members    []*messageMember
-}
-
-func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
-	if m.members == nil {
-		m.members = make([]*messageMember, 0, 32)
-	}
-
-	messageMember := messageMember{
-		code:   code,
-		node:   n,
-		status: status}
-
-	m.members = append(m.members, &messageMember)
-}
-
-// Message contents
-// Bytes       Content
-// ------------------------
-// Bytes 00-03 Checksum (32-bit)
-// Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
-// Bytes 05-06 Sender response port
-// Bytes 07-10 Sender ID Code
-// Bytes 11    Member status byte
-// ---[ Per member ]---
-// Bytes 12-15 Member host IP
-// Bytes 16-17 Member host response port
-// Bytes 18-21 Member message code
-
-func (m *message) encode() []byte {
-	size := 11 + (len(m.members) * 11)
-	bytes := make([]byte, size, size)
-
-	// An index pointer (start at 4 to accommodate checksum)
-	p := 4
-
-	// Bytes 00    Verb (one of {P|A|F|N})
-	// Translation: the first character of the message verb
-	p += encodeByte(byte(m.verb), bytes, p)
-
-	// Bytes 01-02 Sender response port
-	p += encodeUint16(m.sender.port, bytes, p)
-
-	// Bytes 03-06 ID Code
-	p += encodeUint32(m.senderCode, bytes, p)
-
-	// Each member data requires 11 bytes.
-	for _, member := range m.members {
-		mnode := member.node
-		mstatus := member.status
-		mcode := member.code
-
-		// Byte p + 00
-		bytes[p] = byte(mstatus)
-		p++
-
-		// Bytes (p + 01) to (p + 04): Originating host IP
-		ipb := mnode.ip
-		for i := 0; i < 4; i++ {
-			bytes[p+i] = ipb[i]
-		}
-		p += 4
-
-		// Bytes (p + 05) to (p + 06): Originating host response port
-		p += encodeUint16(mnode.port, bytes, p)
-
-		// Bytes (p + 07) to (p + 10): Originating message code
-		p += encodeUint32(mcode, bytes, p)
-	}
-
-	checksum := adler32.Checksum(bytes[4:])
-	encodeUint32(checksum, bytes, 0)
-
-	return bytes
-}
-
-// If members exist on this message, and that message has the "forward to"
-// status, this function returns it; otherwise it returns nil.
-func (m *message) getForwardTo() *messageMember {
-	if len(m.members) > 0 && m.members[0].status == StatusForwardTo {
-		return m.members[0]
-	}
-
-	return nil
-}
-
-// Represents a "member" of a message; i.e., a node that the sender knows
-// about, about which it wishes to notify the downstream recipient.
-type messageMember struct {
-	code   uint32
-	node   *Node
-	status NodeStatus
 }

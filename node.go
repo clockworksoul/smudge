@@ -24,12 +24,12 @@ import (
 
 // Node represents a single node in the cluster.
 type Node struct {
-	ip               net.IP
-	port             uint16
-	timestamp        uint32
-	address          string
-	status           NodeStatus
-	broadcastCounter int8
+	ip          net.IP
+	port        uint16
+	timestamp   uint32
+	address     string
+	status      NodeStatus
+	emitCounter int8
 }
 
 // Address rReturns the address for this node in string format, which is simply
@@ -48,10 +48,10 @@ func (n *Node) Age() uint32 {
 	return GetNowInMillis() - n.timestamp
 }
 
-// BroadcastCounter returns the number of times remaining that current status
-// will be broadcast by this node to other nodes.
-func (n *Node) BroadcastCounter() int8 {
-	return n.broadcastCounter
+// EmitCounter returns the number of times remaining that current status
+// will be emitted by this node to other nodes.
+func (n *Node) EmitCounter() int8 {
+	return n.emitCounter
 }
 
 // IP returns the IP associated with this node.

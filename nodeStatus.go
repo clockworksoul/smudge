@@ -23,7 +23,7 @@ const (
 	// StatusUnknown is the default node status of newly-created nodes.
 	StatusUnknown NodeStatus = iota
 
-	// StatusAlive indicates tthat a node is alive and healthy.
+	// StatusAlive indicates that a node is alive and healthy.
 	StatusAlive
 
 	// StatusDead indicatates that a node is dead and no longer healthy.

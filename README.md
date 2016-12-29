@@ -5,7 +5,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/clockworksoul/smudge)](https://goreportcard.com/report/github.com/clockworksoul/smudge)
 
 ## Introduction 
-Smudge is a minimalist Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
+Smudge is a minimalist Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for cluster node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
+
+Smudge is distinct among SWIM implementations in that in addition to its membership status functions it also allows the transmission of broadcasts to all present healthy members containing a small amount (256 bytes) of arbitrary content.
 
 It was conceived with a space-sensitive systems (mobile, IOT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set is relatively small and limited to functionality around adding and removing nodes and detecting status changes on the cluster.
 
@@ -16,15 +18,15 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 * Low-bandwidth UDP-based failure detection and status dissemination.
 * Imposes a constant message load per group member, regardless of the number of members.
 * Member status changes are eventually detected by all non-faulty members of the cluster (strong completeness).
-* Various knobs and levers to tweak ping and dissemination behavior, settable via the API or environment variables.
+* Supports transmission of short (256 byte) broadcasts that are propagated at most once to all present, healthy members.
 
 ### Coming soon!
 * Support for multicast announcement and recruitment.
-* Adaptive timeouts (defined as the 99th percentile of all recently seen responses; currently hard-coded at 150ms).
 
 ### Deviations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
 * Dead nodes are not immediately removed, but are instead periodically re-tried (with exponential backoff) for a time before finally being removed.
+* Smudge allows the transsion of short, arbitrary-content broadcasts to all healthy nodes.
 
 ## How to use
 To use the code, you simply specify a few configuration options (or use the defaults), create and add a node status change listener, and call the `smudge.Begin()` function.
@@ -50,29 +52,44 @@ smudge.SetListenPort(9999)
 smudge.SetHeartbeatMillis(500)
 ```
 
+
 ### Creating and adding a status change listener
 Creating a status change listener is very straight-forward. 
 
-Simply: 
-
 ```
-package main
-
-import "smudge"
-import "fmt"
-
-type MyListener struct {
+type MyStatusListener struct {
 	smudge.StatusListener
 }
 
-func (m MyListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
+func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
 	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
 }
 
 func main() {
-	smudge.AddStatusListener(MyListener{})
+	smudge.AddStatusListener(MyStatusListener{})
 }
 ```
+
+
+### Creating and adding a broadcast listener
+Adding a broadcast listener is very similar to creating a status listener: 
+
+```
+type MyBroadcastListener struct {
+	smudge.BroadcastListener
+}
+
+func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
+	fmt.Printf("Received broadcast from %v: %s\n",
+		b.Origin().Address(),
+		string(b.Bytes()))
+}
+
+func main() {
+	smudge.AddBroadcastListener(MyBroadcastListener{})
+}
+```
+
 
 ### Adding a new member to the "known nodes" list
 Adding a new member to your known nodes list will also make that node aware of the adding server. Note that because this package doesn't yet support multicast notifications, at this time to join an existing cluster you must use this method to add at least one of that cluster's healthy member nodes.
@@ -90,6 +107,19 @@ Once everything else is done, starting the server is trivial.
 
 Simply call: `smudge.Begin()`
 
+
+### Transmitting a broadcast
+To transmit a broadcast to all healthy nodes currenty in the cluster you can use one of the [`BroadcastBytes(bytes []byte)`](https://godoc.org/github.com/clockworksoul/smudge#BroadcastBytes) or [`BroadcastString(str string)`](https://godoc.org/github.com/clockworksoul/smudge#BroadcastString) functions.
+
+Be aware of the following caveats:
+* Attempting to send a broadcast before the server has been started with cause a panic.
+* The broadcast _will not_ be received by the originating member; `BroadcastListener`s on the originating member will not be triggered.
+* Nodes that join the cluster after the broadcast has been fully propagated will not receive broadcast; nodes that join after the initial transmission but before complete proagation may or may not receive the broadcast.
+
+
+### Getting a list of nodes
+The [`AllNodes()`](https://godoc.org/github.com/clockworksoul/smudge#AllNodes) can be used to give access to all known nodes. [`HealthyNodes()`](https://godoc.org/github.com/clockworksoul/smudge#HealthyNodes) works similarly, but returns only healthy nodes (defined as nodes with a [status](https://godoc.org/github.com/clockworksoul/smudge#NodeStatus) of "alive").
+
 ### Everything in one place
 
 ```
@@ -98,12 +128,22 @@ package main
 import "github.com/clockworksoul/smudge"
 import "fmt"
 
-type MyListener struct {
+type MyStatusListener struct {
 	smudge.StatusListener
 }
 
-func (m MyListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
+func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
 	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
+}
+
+type MyBroadcastListener struct {
+	smudge.BroadcastListener
+}
+
+func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
+	fmt.Printf("Received broadcast from %s: %s\n",
+		b.Origin().Address(),
+		string(b.Bytes()))
 }
 
 func main() {
@@ -114,8 +154,11 @@ func main() {
 	smudge.SetListenPort(listenPort)
 	smudge.SetHeartbeatMillis(heartbeatMillis)
 
-	// Add the listener
-	smudge.AddStatusListener(MyListener{})
+	// Add the status listener
+	smudge.AddStatusListener(MyStatusListener{})
+
+	// Add the broadcast listener
+	smudge.AddBroadcastListener(MyBroadcastListener{})
 
 	// Add a new remote node. Currently, to join an existing cluster you must
 	// add at least one of its healthy member nodes.
