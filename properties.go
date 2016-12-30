@@ -158,7 +158,7 @@ func splitDelimmitedString(str string, regex string) []string {
 			lastStart = val[1]
 		}
 
-		result[len(indices)] = str[lastStart:len(str)]
+		result[len(indices)] = str[lastStart:]
 
 		// Special case of single empty string
 		if len(result) == 1 && result[0] == "" {
