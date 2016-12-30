@@ -86,7 +86,7 @@ func Begin() {
 	for _, address := range GetInitialHosts() {
 		n, err := CreateNodeByAddress(address)
 		if err != nil {
-			logf.Error("Could not create node %s: %v\n", address, err)
+			logfError("Could not create node %s: %v\n", address, err)
 		}
 
 		AddNode(n)

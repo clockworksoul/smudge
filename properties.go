@@ -61,10 +61,12 @@ var initialHosts []string = nil
 const stringListDelimitRegex = "\\s*,?\\s+"
 
 // GetInitialHosts returns the list of initially known hosts.
-func GetInitialHosts() {
+func GetInitialHosts() []string {
 	if initialHosts == nil {
 		initialHosts = getStringArrayVar(EnvVarInitialHosts, DefaultInitialHosts)
 	}
+
+	return initialHosts
 }
 
 // GetListenPort returns the port that this host will listen on.
