@@ -35,7 +35,7 @@ const (
 	// DefaultHeartbeatMillis is the default heartbeat frequency (in millis).
 	DefaultHeartbeatMillis int = 250
 
-	// DefaultInitialHosts is the name of the environment variable that sets
+	// EnvVarInitialHosts is the name of the environment variable that sets
 	// the initial known hosts. The value it sets should be a comma-delimitted
 	// string of one or more IP:PORT pairs (port is optional if it matched the
 	// value of SMUDGE_LISTEN_PORT).
@@ -56,7 +56,7 @@ var heartbeatMillis int
 
 var listenPort int
 
-var initialHosts []string = nil
+var initialHosts []string
 
 const stringListDelimitRegex = "\\s*,?\\s+"
 
