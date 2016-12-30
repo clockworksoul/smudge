@@ -18,7 +18,9 @@ package smudge
 
 import (
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 )
 
 // Provides a series of methods and constants that revolve around the getting
@@ -33,6 +35,15 @@ const (
 	// DefaultHeartbeatMillis is the default heartbeat frequency (in millis).
 	DefaultHeartbeatMillis int = 250
 
+	// DefaultInitialHosts is the name of the environment variable that sets
+	// the initial known hosts. The value it sets should be a comma-delimitted
+	// string of one or more IP:PORT pairs (port is optional if it matched the
+	// value of SMUDGE_LISTEN_PORT).
+	EnvVarInitialHosts = "SMUDGE_INITIAL_HOSTS"
+
+	// DefaultInitialHosts default lists of initially known hosts.
+	DefaultInitialHosts string = ""
+
 	// EnvVarListenPort is the name of the environment variable that sets
 	// the UDP listen port.
 	EnvVarListenPort = "SMUDGE_LISTEN_PORT"
@@ -44,6 +55,17 @@ const (
 var heartbeatMillis int
 
 var listenPort int
+
+var initialHosts []string = nil
+
+const stringListDelimitRegex = "\\s*,?\\s+"
+
+// GetInitialHosts returns the list of initially known hosts.
+func GetInitialHosts() {
+	if initialHosts == nil {
+		initialHosts = getStringArrayVar(EnvVarInitialHosts, DefaultInitialHosts)
+	}
+}
 
 // GetListenPort returns the port that this host will listen on.
 func GetListenPort() int {
@@ -99,4 +121,48 @@ func getIntVar(key string, defaultVal int) int {
 	}
 
 	return valueInt
+}
+
+// Gets an environmental variable "key". If it does not exist, "defaultVal" is
+// returned; if it does, it attempts to convert to a string slice, returning
+// "defaultVal" is it fails.
+func getStringArrayVar(key string, defaultVal string) []string {
+	valueString := os.Getenv(key)
+
+	if valueString == "" {
+		valueString = defaultVal
+	}
+
+	valueSlice := splitDelimmitedString(valueString, stringListDelimitRegex)
+
+	return valueSlice
+}
+
+// Splits a string on a regular expression.
+func splitDelimmitedString(str string, regex string) []string {
+	var result []string
+
+	str = strings.TrimSpace(str)
+
+	if str != "" {
+		reg := regexp.MustCompile(regex)
+		indices := reg.FindAllStringIndex(str, -1)
+
+		result = make([]string, len(indices)+1)
+
+		lastStart := 0
+		for i, val := range indices {
+			result[i] = str[lastStart:val[0]]
+			lastStart = val[1]
+		}
+
+		result[len(indices)] = str[lastStart:len(str)]
+
+		// Special case of single empty string
+		if len(result) == 1 && result[0] == "" {
+			result = make([]string, 0, 0)
+		}
+	}
+
+	return result
 }

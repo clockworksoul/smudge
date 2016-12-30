@@ -82,6 +82,16 @@ func Begin() {
 	UpdateNodeStatus(thisHost, StatusAlive)
 	AddNode(thisHost)
 
+	// Add initial hosts as specified by the SMUDGE_INITIAL_HOSTS property
+	for _, address := range GetInitialHosts() {
+		n, err := CreateNodeByAddress(address)
+		if err != nil {
+			logf.Error("Could not create node %s: %v\n", address, err)
+		}
+
+		AddNode(n)
+	}
+
 	go listenUDP(GetListenPort())
 
 	go startTimeoutCheckLoop()
