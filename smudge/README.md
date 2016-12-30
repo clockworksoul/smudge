@@ -1,0 +1,1 @@
+This directory is contains a simple CLI tool used to test Smudge's member discovery and status dissemination functionality. 
