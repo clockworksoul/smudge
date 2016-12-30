@@ -9,7 +9,7 @@
 ## Introduction 
 Smudge is a minimalist Go implementation of the [SWIM](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for cluster node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
 
-Smudge also extends the standard SWIM protocol so that in addition to the standard membership status functionality it also allows the transmission of broadcasts containing a small amount (256 bytes) of arbitrary content to all present healthy members. This maximum is related to the maximum safe packet size imposed on UDP packet size (RFC 791, RFC 2460). We recognize that some systems allow larger packets, however, and while that can risk fragmentation and dropped packets this value will be configurable in the near future.
+Smudge also extends the standard SWIM protocol so that in addition to the standard membership status functionality it also allows the transmission of broadcasts containing a small amount (256 bytes) of arbitrary content to all present healthy members. This maximum is related to the maximum safe packet size imposed on UDP packet size (RFC 791, RFC 2460). We recognize that some systems allow larger packets, however, and while that can risk fragmentation and dropped packets this value is configurable.
 
 Smudge was conceived with a space-sensitive systems (mobile, IOT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set is relatively small and limited to functionality around adding and removing nodes and detecting status changes on the cluster.
 
@@ -25,7 +25,7 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 
 
 ## Known issues
-* Broadcasts are limited to 255 bytes.
+* Broadcasts are limited to 256 bytes.
 * No WAN support: only local-network, private IPs are supported.
 * No multicast discovery.
 
@@ -51,6 +51,7 @@ Variable                   | Default | Description
 SMUDGE_HEARTBEAT_MILLIS    |     500 | Milliseconds between heartbeats
 SMUDGE_INITIAL_HOSTS       |         | Comma-delimmited list of known members as IP or IP:PORT.
 SMUDGE_LISTEN_PORT         |    9999 | UDP port to listen on
+SMUDGE_MAX_BROADCAST_BYTES |     256 | Maximum byte length of broadcast payloads
 ```
 
 
@@ -60,6 +61,7 @@ If you prefer to direct the behavior of the service using the API, the calls are
 ```
 smudge.SetListenPort(9999)
 smudge.SetHeartbeatMillis(500)
+smudge.SetMaxBroadcastBytes(512)
 ```
 
 

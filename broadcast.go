@@ -25,11 +25,6 @@ import (
 )
 
 const (
-	// The maximum byte length of a broadcast. This is constrained by the
-	// maximum safe UDP packet size of 508 bytes, which must also contain
-	// additional message overhead and status updates.
-	maxBroadcastBytes int = 256
-
 	// Emit counters for broadcasts can be less than 0. We transmit positive
 	// numbers, and decrement all the others. At this value, the broadcast
 	// is removed from the map all together. This ensures broadcasts are
@@ -104,10 +99,10 @@ func BroadcastBytes(bytes []byte) error {
 		bytes:       bytes,
 		emitCounter: int8(emitCount())}
 
-	if len(bytes) > maxBroadcastBytes {
+	if len(bytes) > GetMaxBroadcastBytes() {
 		emsg := fmt.Sprintf(
 			"broadcast payload length exceeds %d bytes",
-			maxBroadcastBytes)
+			GetMaxBroadcastBytes())
 
 		return errors.New(emsg)
 	}
@@ -227,9 +222,9 @@ func decodeBroadcast(bytes []byte) (*Broadcast, error) {
 			errors.New("received originless broadcast")
 	}
 
-	if int(length) > maxBroadcastBytes {
+	if int(length) > GetMaxBroadcastBytes() {
 		return &bcast,
-			errors.New("message length exceeds maximum length of 256 bytes")
+			errors.New("message length exceeds maximum length")
 	}
 
 	return &bcast, nil

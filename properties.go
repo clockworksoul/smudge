@@ -50,6 +50,17 @@ const (
 
 	// DefaultListenPort is the default UDP listen port.
 	DefaultListenPort int = 9999
+
+	// EnvVarMaxBroadcastBytes is the name of the environment variable that
+	// the maximum byte length for broadcast payloads. Note that increasing
+	// this runs the risk of packet fragmentation and dropped messages.
+	EnvVarMaxBroadcastBytes = "SMUDGE_MAX_BROADCAST_BYTES"
+
+	// DefaultMaxBroadcastBytes is the default maximum byte length for
+	// broadcast payloads. This is guided by the maximum safe UDP packet size
+	// of 508 bytes, which must also contain status updates and additional
+	// message overhead.
+	DefaultMaxBroadcastBytes int = 256
 )
 
 var heartbeatMillis int
@@ -58,7 +69,18 @@ var listenPort int
 
 var initialHosts []string
 
+var maxBroadcastBytes int
+
 const stringListDelimitRegex = "\\s*,?\\s+"
+
+// GetHeartbeatMillis gets this host's heartbeat frequency in milliseconds.
+func GetHeartbeatMillis() int {
+	if heartbeatMillis == 0 {
+		heartbeatMillis = getIntVar(EnvVarHeartbeatMillis, DefaultHeartbeatMillis)
+	}
+
+	return heartbeatMillis
+}
 
 // GetInitialHosts returns the list of initially known hosts.
 func GetInitialHosts() []string {
@@ -78,30 +100,47 @@ func GetListenPort() int {
 	return listenPort
 }
 
-// SetListenPort sets the UDP port to listen on. It has no effect once
-// Begin() has been called.
-func SetListenPort(p int) {
-	if p == 0 {
-		listenPort = DefaultListenPort
-	} else {
-		listenPort = p
-	}
-}
-
-// GetHeartbeatMillis gets this host's heartbeat frequency in milliseconds.
-func GetHeartbeatMillis() int {
-	if heartbeatMillis == 0 {
-		heartbeatMillis = getIntVar(EnvVarHeartbeatMillis, DefaultHeartbeatMillis)
+// GetHeartbeatMillis the the maximum byte length for broadcast payloads.
+func GetMaxBroadcastBytes() int {
+	if maxBroadcastBytes == 0 {
+		maxBroadcastBytes = getIntVar(EnvVarMaxBroadcastBytes, DefaultMaxBroadcastBytes)
 	}
 
-	return heartbeatMillis
+	return maxBroadcastBytes
 }
 
 // SetHeartbeatMillis sets this nodes heartbeat frequency. Unlike
 // SetListenPort(), calling this function after Begin() has been called will
 // have an effect.
 func SetHeartbeatMillis(val int) {
+	if val == 0 {
+		heartbeatMillis = DefaultListenPort
+	} else {
+		heartbeatMillis = val
+	}
+
 	heartbeatMillis = val
+}
+
+// SetListenPort sets the UDP port to listen on. It has no effect once
+// Begin() has been called.
+func SetListenPort(val int) {
+	if val == 0 {
+		listenPort = DefaultListenPort
+	} else {
+		listenPort = val
+	}
+}
+
+// SetMaxBroadcastBytes sets the maximum byte length for broadcast payloads.
+// Note that increasing this beyond the default of 256 runs the risk of packet
+// fragmentation and dropped messages.
+func SetMaxBroadcastBytes(val int) {
+	if val == 0 {
+		maxBroadcastBytes = DefaultMaxBroadcastBytes
+	} else {
+		maxBroadcastBytes = val
+	}
 }
 
 // Gets an environmental variable "key". If it does not exist, "defaultVal" is
