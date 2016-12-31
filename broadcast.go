@@ -93,12 +93,6 @@ func (b *Broadcast) Origin() *Node {
 // through the cluster will not receive the message. The maximum broadcast
 // length is 256 bytes.
 func BroadcastBytes(bytes []byte) error {
-	bcast := Broadcast{
-		origin:      thisHost,
-		index:       indexCounter,
-		bytes:       bytes,
-		emitCounter: int8(emitCount())}
-
 	if len(bytes) > GetMaxBroadcastBytes() {
 		emsg := fmt.Sprintf(
 			"broadcast payload length exceeds %d bytes",
@@ -108,8 +102,17 @@ func BroadcastBytes(bytes []byte) error {
 	}
 
 	broadcasts.Lock()
+
+	bcast := Broadcast{
+		origin:      thisHost,
+		index:       indexCounter,
+		bytes:       bytes,
+		emitCounter: int8(emitCount())}
+
 	broadcasts.m[bcast.Label()] = &bcast
+
 	indexCounter++
+
 	broadcasts.Unlock()
 
 	return nil
