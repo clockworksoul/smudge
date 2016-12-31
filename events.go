@@ -16,9 +16,17 @@ limitations under the License.
 
 package smudge
 
-var broadcastListeners = make([]BroadcastListener, 0, 16)
+import "sync"
 
-var statusListeners = make([]StatusListener, 0, 16)
+var broadcastListeners = struct {
+	sync.RWMutex
+	s []BroadcastListener
+}{s: make([]BroadcastListener, 0, 16)}
+
+var statusListeners = struct {
+	sync.RWMutex
+	s []StatusListener
+}{s: make([]StatusListener, 0, 16)}
 
 // BroadcastListener is the interface that must be implemented to take advantage
 // of the cluster member status update notification functionality provided by
@@ -33,13 +41,17 @@ type BroadcastListener interface {
 // whose OnChange() function will be called whenever the node is notified of any
 // change in the status of a cluster member.
 func AddBroadcastListener(listener BroadcastListener) {
-	broadcastListeners = append(broadcastListeners, listener)
+	broadcastListeners.Lock()
+	broadcastListeners.s = append(broadcastListeners.s, listener)
+	broadcastListeners.Unlock()
 }
 
 func doBroadcastUpdate(broadcast *Broadcast) {
-	for _, sl := range broadcastListeners {
+	broadcastListeners.RLock()
+	for _, sl := range broadcastListeners.s {
 		sl.OnBroadcast(broadcast)
 	}
+	broadcastListeners.RUnlock()
 }
 
 // StatusListener is the interface that must be implemented to take advantage
@@ -55,11 +67,15 @@ type StatusListener interface {
 // whose OnChange() function will be called whenever the node is notified of any
 // change in the status of a cluster member.
 func AddStatusListener(listener StatusListener) {
-	statusListeners = append(statusListeners, listener)
+	statusListeners.Lock()
+	statusListeners.s = append(statusListeners.s, listener)
+	statusListeners.Unlock()
 }
 
 func doStatusUpdate(node *Node, status NodeStatus) {
-	for _, sl := range statusListeners {
+	statusListeners.RLock()
+	for _, sl := range statusListeners.s {
 		sl.OnChange(node, status)
 	}
+	statusListeners.RUnlock()
 }
