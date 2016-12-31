@@ -283,13 +283,12 @@ func receiveBroadcast(broadcast *Broadcast) {
 
 	broadcasts.Lock()
 	_, contains := broadcasts.m[label]
+	if !contains {
+		broadcasts.m[label] = broadcast
+	}
 	broadcasts.Unlock()
 
 	if !contains {
-		broadcasts.Lock()
-		broadcasts.m[label] = broadcast
-		broadcasts.Unlock()
-
 		logfInfo("Broadcast [%s]=%s\n",
 			label,
 			string(broadcast.Bytes()))
