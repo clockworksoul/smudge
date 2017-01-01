@@ -48,7 +48,7 @@ The following variables and their default values are as follows:
 ```
 Variable                   | Default | Description
 -------------------------- | ------- | -------------------------------
-SMUDGE_HEARTBEAT_MILLIS    |     500 | Milliseconds between heartbeats
+SMUDGE_HEARTBEAT_MILLIS    |     250 | Milliseconds between heartbeats
 SMUDGE_INITIAL_HOSTS       |         | Comma-delimmited list of known members as IP or IP:PORT.
 SMUDGE_LISTEN_PORT         |    9999 | UDP port to listen on
 SMUDGE_MAX_BROADCAST_BYTES |     256 | Maximum byte length of broadcast payloads
@@ -60,13 +60,13 @@ If you prefer to direct the behavior of the service using the API, the calls are
 
 ```
 smudge.SetListenPort(9999)
-smudge.SetHeartbeatMillis(500)
-smudge.SetMaxBroadcastBytes(512)
+smudge.SetHeartbeatMillis(250)
+smudge.SetMaxBroadcastBytes(256)
 ```
 
 
 ### Creating and adding a status change listener
-Creating a status change listener is very straight-forward. 
+Creating a status change listener is very straight-forward:
 
 ```
 type MyStatusListener struct {
@@ -115,7 +115,7 @@ if err == nil {
 
 
 ### Starting the server
-Once everything else is done, starting the server is trivial.
+Once everything else is done, starting the server is trivial:
 
 Simply call: `smudge.Begin()`
 
@@ -124,13 +124,13 @@ Simply call: `smudge.Begin()`
 To transmit a broadcast to all healthy nodes currenty in the cluster you can use one of the [`BroadcastBytes(bytes []byte)`](https://godoc.org/github.com/clockworksoul/smudge#BroadcastBytes) or [`BroadcastString(str string)`](https://godoc.org/github.com/clockworksoul/smudge#BroadcastString) functions.
 
 Be aware of the following caveats:
-* Attempting to send a broadcast before the server has been started with cause a panic.
+* Attempting to send a broadcast before the server has been started will cause a panic.
 * The broadcast _will not_ be received by the originating member; `BroadcastListener`s on the originating member will not be triggered.
-* Nodes that join the cluster after the broadcast has been fully propagated will not receive broadcast; nodes that join after the initial transmission but before complete proagation may or may not receive the broadcast.
+* Nodes that join the cluster after the broadcast has been fully propagated will not receive the broadcast; nodes that join after the initial transmission but before complete proagation may or may not receive the broadcast.
 
 
 ### Getting a list of nodes
-The [`AllNodes()`](https://godoc.org/github.com/clockworksoul/smudge#AllNodes) can be used to give access to all known nodes. [`HealthyNodes()`](https://godoc.org/github.com/clockworksoul/smudge#HealthyNodes) works similarly, but returns only healthy nodes (defined as nodes with a [status](https://godoc.org/github.com/clockworksoul/smudge#NodeStatus) of "alive").
+The [`AllNodes()`](https://godoc.org/github.com/clockworksoul/smudge#AllNodes) can be used to get all known nodes; [`HealthyNodes()`](https://godoc.org/github.com/clockworksoul/smudge#HealthyNodes) works similarly, but returns only healthy nodes (defined as nodes with a [status](https://godoc.org/github.com/clockworksoul/smudge#NodeStatus) of "alive").
 
 
 ### Everything in one place
