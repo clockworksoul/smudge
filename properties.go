@@ -100,7 +100,7 @@ func GetListenPort() int {
 	return listenPort
 }
 
-// GetHeartbeatMillis the the maximum byte length for broadcast payloads.
+// GetMaxBroadcastBytes returns the maximum byte length for broadcast payloads.
 func GetMaxBroadcastBytes() int {
 	if maxBroadcastBytes == 0 {
 		maxBroadcastBytes = getIntVar(EnvVarMaxBroadcastBytes, DefaultMaxBroadcastBytes)
