@@ -19,7 +19,6 @@ package smudge
 import (
 	"math/rand"
 	"net"
-	"strconv"
 	"sync"
 )
 
@@ -86,43 +85,9 @@ func (m *nodeMap) getByIP(ip net.IP, port uint16) *Node {
 		port = uint16(GetListenPort())
 	}
 
-	address := ip.String() + ":" + strconv.FormatInt(int64(port), 10)
+	address := nodeAddressString(ip, port)
 
 	return m.getByAddress(address)
-}
-
-// Returns a single random node from the nodes map. If no nodes are available,
-// nil is returned.
-func (m *nodeMap) getRandomNode(exclude ...*Node) *Node {
-	var filtered []string
-
-	rawKeys := m.keys()
-
-	if len(exclude) == 0 {
-		filtered = rawKeys
-	} else {
-		filtered = make([]string, 0, len(rawKeys))
-
-		// Build a filtered list excluding the excluded keys
-	Outer:
-		for _, rk := range rawKeys {
-			for _, ex := range exclude {
-				if rk == ex.Address() {
-					continue Outer
-				}
-			}
-
-			filtered = append(filtered, rk)
-		}
-	}
-
-	if len(filtered) > 0 {
-		// Okay, get a random index, and return the appropriate *Node
-		i := rand.Intn(len(filtered))
-		return m.nodes[filtered[i]]
-	}
-
-	return nil
 }
 
 // Returns a slice of Node[] of from 0 to len(nodes) nodes.

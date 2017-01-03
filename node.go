@@ -37,7 +37,7 @@ type Node struct {
 // throughout the code base.
 func (n *Node) Address() string {
 	if n.address == "" {
-		n.address = fmt.Sprintf("%s:%d", n.ip.String(), n.port)
+		n.address = nodeAddressString(n.ip, n.port)
 	}
 
 	return n.address
@@ -78,6 +78,10 @@ func (n *Node) Timestamp() uint32 {
 // Touch updates the timestamp to the local time in milliseconds.
 func (n *Node) Touch() {
 	n.timestamp = GetNowInMillis()
+}
+
+func nodeAddressString(ip net.IP, port uint16) string {
+	return fmt.Sprintf("%s:%d", ip, port)
 }
 
 // GetNowInMillis returns the current local time in milliseconds since the
