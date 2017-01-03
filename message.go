@@ -117,7 +117,7 @@ func (m *message) encode() []byte {
 
 	// Byte 00
 	// Rightmost 2 bits: verb (one of {P|A|F|N})
-	// Leftmost 6 bits: number
+	// Leftmost 6 bits: number of members in payload
 	verbByte := byte(len(m.members))
 	verbByte = (verbByte << 2) | byte(m.verb)
 	p += encodeByte(verbByte, bytes, p)
@@ -193,7 +193,9 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 			errors.New("checksum failure from " + sourceIP.String())
 	}
 
-	// Bytes 04    Verb (one of {P|A|F|N})
+	// Byte 04
+	// Rightmost 2 bits: verb (one of {P|A|F|N})
+	// Leftmost 6 bits: number of members in payload
 	v, p := decodeByte(bytes, p)
 	verb := messageVerb(v & 0x03)
 
