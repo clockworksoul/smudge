@@ -23,7 +23,7 @@ import (
 )
 
 // Message contents
-// ---[ Base message (12 bytes)]---
+// ---[ Base message (11 bytes)]---
 // Bytes 00-03 Checksum (32-bit)
 // Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
 // Bytes 05-06 Sender response port
@@ -33,6 +33,12 @@ import (
 // Bytes 01-04 Member host IP
 // Bytes 05-06 Member host response port
 // Bytes 07-10 Member message code
+// ---[ Per broadcast (1 allowed) (11+N bytes) ]
+// Bytes 00-03 Origin IP
+// Bytes 04-05 Origin response port
+// Bytes 06-09 Origin broadcast counter
+// Bytes 10-11 Payload length (bytes)
+// Bytes 12-NN Payload
 
 type message struct {
 	sender     *Node
@@ -59,13 +65,21 @@ func newMessage(verb messageVerb, sender *Node, code uint32) message {
 	}
 }
 
+// Adds a broadcast to this message. Only one broadcast is allowed; subsequent
+// calls will replace an existing broadcast.
 func (m *message) addBroadcast(broadcast *Broadcast) {
 	m.broadcast = broadcast
 }
 
-func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
+// Adds a member status update to this message. The maximum number of allowed
+// members is 2^6 - 1 = 63, though it is incredibly unlikely that this maximum
+// will be reached without an absurdly high lambda. There aren't yet many
+// 88 billion node clusters (assuming lambda of 2.5).
+func (m *message) addMember(n *Node, status NodeStatus, code uint32) error {
 	if m.members == nil {
 		m.members = make([]*messageMember, 0, 32)
+	} else if len(m.members) >= 63 {
+		return errors.New("member list overflow")
 	}
 
 	messageMember := messageMember{
@@ -74,6 +88,8 @@ func (m *message) addMember(n *Node, status NodeStatus, code uint32) {
 		status: status}
 
 	m.members = append(m.members, &messageMember)
+
+	return nil
 }
 
 // Message contents
@@ -99,7 +115,9 @@ func (m *message) encode() []byte {
 	// An index pointer (start at 4 to accommodate checksum)
 	p := 4
 
-	// Bytes 00    Verb (one of {P|A|F|N})
+	// Byte 00
+	// Rightmost 2 bits: verb (one of {P|A|F|N})
+	// Leftmost 6 bits: number
 	verbByte := byte(len(m.members))
 	verbByte = (verbByte << 2) | byte(m.verb)
 	p += encodeByte(verbByte, bytes, p)
@@ -159,7 +177,8 @@ func (m *message) getForwardTo() *messageMember {
 
 // Parses the bytes received in a UDP message.
 // If the address:port from the message can't be associated with a known
-// (live) node, then the value of message.sender will be nil.
+// (live) node, then an instance of message.sender will be created from
+// available data but not explicitly added to the known nodes.
 func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 	var err error
 
@@ -206,16 +225,7 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 		m.broadcast, err = decodeBroadcast(bytes[memberLastIndex:])
 
 		if m.broadcast.origin.IP()[0] == 0 || m.broadcast.origin.Port() == 0 {
-			logWarn("Received originless broadcast")
-
-			logWarn("Origin:", *sender)
-			logWarn("Member count:", memberCount)
-			logWarn("len(bytes):", len(bytes))
-			logWarn("memberLastIndex: ", memberLastIndex)
-			logWarn("BytesPre:", bytes)
-			logWarn("BytesSum:", bytes[p:memberLastIndex])
-
-			panic("Broadcast: " + m.broadcast.Label())
+			err = errors.New("Received originless broadcast!")
 		}
 	}
 

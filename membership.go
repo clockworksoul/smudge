@@ -456,7 +456,11 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 	// Add members for update.
 	nodes := getRandomUpdatedNodes(pingRequestCount(), node, thisHost)
 	for _, m := range nodes {
-		msg.addMember(m, m.status, currentHeartbeat)
+		err = msg.addMember(m, m.status, currentHeartbeat)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	// Emit counters for broadcasts can be less than 0. We transmit positive
