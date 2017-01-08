@@ -30,6 +30,7 @@ type Node struct {
 	address     string
 	status      NodeStatus
 	emitCounter int8
+	heartbeat   uint32
 }
 
 // Address rReturns the address for this node in string format, which is simply

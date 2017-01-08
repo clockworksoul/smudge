@@ -27,12 +27,12 @@ import (
 // Bytes 00-03 Checksum (32-bit)
 // Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
 // Bytes 05-06 Sender response port
-// Bytes 07-10 Sender ID Code
+// Bytes 07-10 Sender current heartbeat
 // ---[ Per member (11 bytes)]---
 // Bytes 00    Member status byte
 // Bytes 01-04 Member host IP
 // Bytes 05-06 Member host response port
-// Bytes 07-10 Member message code
+// Bytes 07-10 Sender current heartbeat
 // ---[ Per broadcast (1 allowed) (11+N bytes) ]
 // Bytes 00-03 Origin IP
 // Bytes 04-05 Origin response port
@@ -41,27 +41,27 @@ import (
 // Bytes 12-NN Payload
 
 type message struct {
-	sender     *Node
-	senderCode uint32
-	verb       messageVerb
-	members    []*messageMember
-	broadcast  *Broadcast
+	sender          *Node
+	senderHeartbeat uint32
+	verb            messageVerb
+	members         []*messageMember
+	broadcast       *Broadcast
 }
 
 // Represents a "member" of a message; i.e., a node that the sender knows
 // about, about which it wishes to notify the downstream recipient.
 type messageMember struct {
-	code   uint32
-	node   *Node
-	status NodeStatus
+	heartbeat uint32
+	node      *Node
+	status    NodeStatus
 }
 
 // Convenience function. Creates a new message instance.
-func newMessage(verb messageVerb, sender *Node, code uint32) message {
+func newMessage(verb messageVerb, sender *Node, senderHeartbeat uint32) message {
 	return message{
-		sender:     sender,
-		senderCode: code,
-		verb:       verb,
+		sender:          sender,
+		senderHeartbeat: senderHeartbeat,
+		verb:            verb,
 	}
 }
 
@@ -75,7 +75,7 @@ func (m *message) addBroadcast(broadcast *Broadcast) {
 // members is 2^6 - 1 = 63, though it is incredibly unlikely that this maximum
 // will be reached without an absurdly high lambda. There aren't yet many
 // 88 billion node clusters (assuming lambda of 2.5).
-func (m *message) addMember(n *Node, status NodeStatus, code uint32) error {
+func (m *message) addMember(n *Node, status NodeStatus, heartbeat uint32) error {
 	if m.members == nil {
 		m.members = make([]*messageMember, 0, 32)
 	} else if len(m.members) >= 63 {
@@ -83,9 +83,9 @@ func (m *message) addMember(n *Node, status NodeStatus, code uint32) error {
 	}
 
 	messageMember := messageMember{
-		code:   code,
-		node:   n,
-		status: status}
+		heartbeat: heartbeat,
+		node:      n,
+		status:    status}
 
 	m.members = append(m.members, &messageMember)
 
@@ -102,7 +102,7 @@ func (m *message) addMember(n *Node, status NodeStatus, code uint32) error {
 // Bytes 00    Member status byte
 // Bytes 01-04 Member host IP
 // Bytes 05-06 Member host response port
-// Bytes 07-10 Member message code
+// Bytes 07-10 Member heartbeat
 
 func (m *message) encode() []byte {
 	size := 11 + (len(m.members) * 11)
@@ -126,13 +126,13 @@ func (m *message) encode() []byte {
 	p += encodeUint16(m.sender.port, bytes, p)
 
 	// Bytes 03-06 ID Code
-	p += encodeUint32(m.senderCode, bytes, p)
+	p += encodeUint32(m.senderHeartbeat, bytes, p)
 
 	// Each member data requires 11 bytes.
 	for _, member := range m.members {
 		mnode := member.node
 		mstatus := member.status
-		mcode := member.code
+		mcode := member.heartbeat
 
 		// Byte p + 00
 		bytes[p] = byte(mstatus)
@@ -205,7 +205,7 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 	senderPort, p := decodeUint16(bytes, p)
 
 	// Bytes 07-10 Sender ID Code
-	senderCode, p := decodeUint32(bytes, p)
+	senderHeartbeat, p := decodeUint32(bytes, p)
 
 	// Now that we have the IP and port, we can find the Node.
 	sender := knownNodes.getByIP(sourceIP.To4(), senderPort)
@@ -216,7 +216,7 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
-	m := newMessage(verb, sender, senderCode)
+	m := newMessage(verb, sender, senderHeartbeat)
 
 	memberLastIndex := p + (memberCount * 11)
 	if len(bytes) > p {
@@ -238,7 +238,7 @@ func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 	// Bytes 00    Member status byte
 	// Bytes 01-04 Member host IP
 	// Bytes 05-06 Member host response port
-	// Bytes 07-10 Member message code
+	// Bytes 07-10 Member heartbeat
 
 	members := make([]*messageMember, 0, 1)
 
@@ -269,7 +269,7 @@ func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 		// Bytes 05-06 member response port
 		mport, p = decodeUint16(bytes, p)
 
-		// Bytes 07-10 member message code
+		// Bytes 07-10 member heartbeat
 		mcode, p = decodeUint32(bytes, p)
 
 		if len(mip) > 0 {
@@ -283,9 +283,9 @@ func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 		}
 
 		member := messageMember{
-			code:   mcode,
-			node:   mnode,
-			status: mstatus,
+			heartbeat: mcode,
+			node:      mnode,
+			status:    mstatus,
 		}
 
 		members = append(members, &member)

@@ -171,29 +171,7 @@ func RemoveNode(node *Node) (*Node, error) {
 // the list of recently updated nodes. If the status is StatusDead, then the
 // node will be moved from the live nodes list to the dead nodes list.
 func UpdateNodeStatus(node *Node, status NodeStatus) {
-	if node.status != status {
-		node.timestamp = GetNowInMillis()
-		node.status = status
-		node.emitCounter = int8(emitCount())
-
-		// If this isn't in the recently updated list, add it.
-		if !updatedNodes.contains(node) {
-			updatedNodes.add(node)
-		}
-
-		if status != StatusDead {
-			delete(deadNodeRetries, node.Address())
-		}
-
-		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)\n",
-			node.Address(),
-			status,
-			knownNodes.length(),
-			knownNodes.lengthWithStatus(StatusAlive),
-			knownNodes.lengthWithStatus(StatusDead))
-
-		doStatusUpdate(node, status)
-	}
+	updateNodeStatus(node, status, node.heartbeat)
 }
 
 /******************************************************************************
@@ -276,6 +254,42 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	}
 
 	return ip, port, err
+}
+
+// UpdateNodeStatus assigns a new status for the specified node and adds it to
+// the list of recently updated nodes. If the status is StatusDead, then the
+// node will be moved from the live nodes list to the dead nodes list.
+func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32) {
+	if node.status != status {
+		if heartbeat < node.heartbeat {
+			logfWarn("Decreasing known node heartbeat value from %d to %d\n",
+				node.heartbeat,
+				heartbeat)
+		}
+
+		node.timestamp = GetNowInMillis()
+		node.status = status
+		node.emitCounter = int8(emitCount())
+		node.heartbeat = heartbeat
+
+		// If this isn't in the recently updated list, add it.
+		if !updatedNodes.contains(node) {
+			updatedNodes.add(node)
+		}
+
+		if status != StatusDead {
+			delete(deadNodeRetries, node.Address())
+		}
+
+		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)\n",
+			node.Address(),
+			status,
+			knownNodes.length(),
+			knownNodes.lengthWithStatus(StatusAlive),
+			knownNodes.lengthWithStatus(StatusDead))
+
+		doStatusUpdate(node, status)
+	}
 }
 
 type deadNodeCounter struct {

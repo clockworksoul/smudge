@@ -79,7 +79,7 @@ func Begin() {
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
-	UpdateNodeStatus(thisHost, StatusAlive)
+	updateNodeStatus(thisHost, StatusAlive, 0)
 	AddNode(thisHost)
 
 	// Add initial hosts as specified by the SMUDGE_INITIAL_HOSTS property
@@ -190,7 +190,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 	if len(filteredNodes) == 0 {
 		logDebug(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
-		UpdateNodeStatus(pack.node, StatusDead)
+		updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
 	} else {
 		for i, n := range filteredNodes {
 			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
@@ -272,7 +272,7 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 	logfTrace("Got %v from %v code=%d\n",
 		msg.verb,
 		msg.sender.Address(),
-		msg.senderCode)
+		msg.senderHeartbeat)
 
 	updateStatusesFromMessage(msg)
 
@@ -300,15 +300,15 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 	}
 
 	// Synchronize heartbeats
-	if msg.senderCode > currentHeartbeat {
-		currentHeartbeat = msg.senderCode - 1
+	if msg.senderHeartbeat > currentHeartbeat {
+		currentHeartbeat = msg.senderHeartbeat - 1
 	}
 
 	return nil
 }
 
 func receiveVerbAckUDP(msg message) error {
-	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.senderCode), 10)
+	key := msg.sender.Address() + ":" + strconv.FormatInt(int64(msg.senderHeartbeat), 10)
 
 	pendingAcks.RLock()
 	_, ok := pendingAcks.m[key]
@@ -364,7 +364,7 @@ func receiveVerbForwardUDP(msg message) error {
 
 		member := msg.members[0]
 		node := member.node
-		code := member.code
+		code := member.heartbeat
 		key := node.Address() + ":" + strconv.FormatInt(int64(code), 10)
 
 		pack := pendingAck{
@@ -385,11 +385,11 @@ func receiveVerbForwardUDP(msg message) error {
 }
 
 func receiveVerbPingUDP(msg message) error {
-	return transmitVerbAckUDP(msg.sender, msg.senderCode)
+	return transmitVerbAckUDP(msg.sender, msg.senderHeartbeat)
 }
 
 func receiveVerbNonForwardPingUDP(msg message) error {
-	return transmitVerbAckUDP(msg.sender, msg.senderCode)
+	return transmitVerbAckUDP(msg.sender, msg.senderHeartbeat)
 }
 
 func startTimeoutCheckLoop() {
@@ -415,13 +415,13 @@ func startTimeoutCheckLoop() {
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
 					if knownNodes.contains(pack.node) {
-						UpdateNodeStatus(pack.callback, StatusDead)
+						updateNodeStatus(pack.callback, StatusDead, currentHeartbeat)
 					}
 				case packNFP:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
 					if knownNodes.contains(pack.node) {
-						UpdateNodeStatus(pack.node, StatusDead)
+						updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
 					}
 				}
 
@@ -455,8 +455,8 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 
 	// Add members for update.
 	nodes := getRandomUpdatedNodes(pingRequestCount(), node, thisHost)
-	for _, m := range nodes {
-		err = msg.addMember(m, m.status, currentHeartbeat)
+	for _, n := range nodes {
+		err = msg.addMember(n, n.status, n.heartbeat)
 
 		if err != nil {
 			return err
@@ -526,6 +526,16 @@ func transmitVerbPingUDP(node *Node, code uint32) error {
 
 func updateStatusesFromMessage(msg message) {
 	for _, m := range msg.members {
+		// If the heartbeat in the message is less then the heartbeat
+		// associated with the last known status, then we conclude that the
+		// message is old and we drop it.
+		if m.heartbeat < m.node.heartbeat {
+			logfDebug("Message is old (%d vs %d): dropping\n",
+				m.node.heartbeat, m.heartbeat)
+
+			continue
+		}
+
 		switch m.status {
 		case StatusForwardTo:
 			// The FORWARD_TO status isn't useful here, so we ignore those
@@ -533,19 +543,19 @@ func updateStatusesFromMessage(msg message) {
 		case StatusDead:
 			// Don't tell ME I'm dead.
 			if m.node.Address() != thisHost.Address() {
-				UpdateNodeStatus(m.node, m.status)
+				updateNodeStatus(m.node, m.status, m.heartbeat)
 				AddNode(m.node)
 			}
 		default:
-			UpdateNodeStatus(m.node, m.status)
+			updateNodeStatus(m.node, m.status, m.heartbeat)
 			AddNode(m.node)
 		}
 	}
 
-	// First, if we don't know the sender, we add it. Since it may have just
-	// rejoined the cluster from a dead state, we report its status as ALIVE.
-	UpdateNodeStatus(msg.sender, StatusAlive)
+	// Obviously, we know the sender is alive. Report it as such.
+	updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat)
 
+	// First, if we don't know the sender, we add it.
 	if !knownNodes.contains(msg.sender) {
 		AddNode(msg.sender)
 	}
