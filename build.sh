@@ -16,4 +16,4 @@ docker run --rm \
 
 docker build -t clockworksoul/smudge:latest .
 
-rm -R tmp
+sudo rm -R tmp
