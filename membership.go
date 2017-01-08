@@ -87,9 +87,9 @@ func Begin() {
 		n, err := CreateNodeByAddress(address)
 		if err != nil {
 			logfError("Could not create node %s: %v\n", address, err)
+		} else {
+			AddNode(n)
 		}
-
-		AddNode(n)
 	}
 
 	go listenUDP(GetListenPort())
