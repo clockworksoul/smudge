@@ -47,19 +47,19 @@ var node2 = Node{
 	emitCounter: 42}
 
 var message1a = message{
-	sender:     &node1a,
-	senderCode: 255,
-	verb:       verbPing}
+	sender:          &node1a,
+	senderHeartbeat: 255,
+	verb:            verbPing}
 
 var message1b = message{
-	sender:     &node1b,
-	senderCode: 255,
-	verb:       verbPing}
+	sender:          &node1b,
+	senderHeartbeat: 255,
+	verb:            verbPing}
 
 var message2 = message{
-	sender:     &node2,
-	senderCode: 23,
-	verb:       verbAck}
+	sender:          &node2,
+	senderHeartbeat: 23,
+	verb:            verbAck}
 
 // Does deep equality of two different but identical messages return true?
 func TestDeepEqualityTrue(t *testing.T) {
@@ -86,9 +86,9 @@ func TestEncodeDecodeBasic(t *testing.T) {
 		timestamp: timestamp}
 
 	message := message{
-		sender:     &sender,
-		senderCode: 255,
-		verb:       verbPing}
+		sender:          &sender,
+		senderHeartbeat: 255,
+		verb:            verbPing}
 
 	ip := net.IP([]byte{127, 0, 0, 1})
 	bytes := message.encode()
@@ -125,9 +125,9 @@ func TestEncodeDecode1Member(t *testing.T) {
 		timestamp: timestamp}
 
 	message := message{
-		sender:     &sender,
-		senderCode: 255,
-		verb:       verbPing}
+		sender:          &sender,
+		senderHeartbeat: 255,
+		verb:            verbPing}
 	message.addMember(&member, StatusDead, 38)
 
 	if len(message.members) != 1 {
@@ -174,9 +174,9 @@ func TestEncodeDecode1MemberBroadcast(t *testing.T) {
 		timestamp: timestamp}
 
 	message := message{
-		sender:     &sender,
-		senderCode: 255,
-		verb:       verbPing}
+		sender:          &sender,
+		senderHeartbeat: 255,
+		verb:            verbPing}
 	message.addMember(&member, StatusDead, 38)
 
 	broadcast := Broadcast{
