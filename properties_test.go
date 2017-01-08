@@ -74,6 +74,15 @@ func TestSplitString2c(t *testing.T) {
 	}
 }
 
+func TestSplitString2d(t *testing.T) {
+	str := "localhost:10000,localhost:9999"
+	split := splitDelimmitedString(str, stringListDelimitRegex)
+
+	if len(split) != 2 || split[0] != "localhost:10000" {
+		t.Errorf("len=%d contents=%v\n", len(split), split)
+	}
+}
+
 func TestSplitString3a(t *testing.T) {
 	str := "foo bar bat"
 	split := splitDelimmitedString(str, stringListDelimitRegex)

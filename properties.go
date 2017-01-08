@@ -71,7 +71,7 @@ var initialHosts []string
 
 var maxBroadcastBytes int
 
-const stringListDelimitRegex = "\\s*,?\\s+"
+const stringListDelimitRegex = "\\s*((,\\s*)|(\\s+))"
 
 // GetHeartbeatMillis gets this host's heartbeat frequency in milliseconds.
 func GetHeartbeatMillis() int {
