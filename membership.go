@@ -455,6 +455,12 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 
 	// Add members for update.
 	nodes := getRandomUpdatedNodes(pingRequestCount(), node, thisHost)
+
+	// No updates to distribute? Send out a few updates on other known nodes.
+	if len(nodes) == 0 {
+		nodes = knownNodes.getRandomNodes(pingRequestCount(), node, thisHost)
+	}
+
 	for _, n := range nodes {
 		err = msg.addMember(n, n.status, n.heartbeat)
 
