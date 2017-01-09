@@ -559,7 +559,9 @@ func updateStatusesFromMessage(msg message) {
 	}
 
 	// Obviously, we know the sender is alive. Report it as such.
-	updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat)
+	if msg.senderHeartbeat > msg.sender.heartbeat {
+		updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat)
+	}
 
 	// First, if we don't know the sender, we add it.
 	if !knownNodes.contains(msg.sender) {
