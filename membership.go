@@ -279,16 +279,20 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 		msg.sender.Address(),
 		msg.senderHeartbeat)
 
+	// Synchronize heartbeats
+	if msg.senderHeartbeat > 0 && msg.senderHeartbeat-1 > currentHeartbeat {
+		logfTrace("Heartbeat advanced from %d to %d\n",
+			currentHeartbeat,
+			msg.senderHeartbeat-1)
+
+		currentHeartbeat = msg.senderHeartbeat - 1
+	}
+
 	updateStatusesFromMessage(msg)
 
 	receiveBroadcast(msg.broadcast)
 
-	// Handle the verb. Each verb is three characters, and is one of the
-	// following:
-	//   PNG - Ping
-	//   ACK - Acknowledge
-	//   FWD - Forwarding ping (contains origin address)
-	//   NFP - Non-forwarding ping
+	// Handle the verb.
 	switch msg.verb {
 	case verbPing:
 		err = receiveVerbPingUDP(msg)
@@ -302,11 +306,6 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 
 	if err != nil {
 		return err
-	}
-
-	// Synchronize heartbeats
-	if msg.senderHeartbeat > currentHeartbeat {
-		currentHeartbeat = msg.senderHeartbeat - 1
 	}
 
 	return nil
@@ -468,10 +467,11 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 
 	for _, n := range nodes {
 		err = msg.addMember(n, n.status, n.heartbeat)
-
 		if err != nil {
 			return err
 		}
+
+		n.emitCounter--
 	}
 
 	// Emit counters for broadcasts can be less than 0. We transmit positive
