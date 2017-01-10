@@ -345,8 +345,8 @@ func receiveVerbAckUDP(msg message) error {
 func notePingResponseTime(pack *pendingAck) {
 	// Note the elapsed time
 	elapsedMillis := pack.elapsed()
-	if elapsedMillis < 1 {
-		elapsedMillis = 1
+	if elapsedMillis < 10 {
+		elapsedMillis = 10
 	}
 
 	pingdata.add(elapsedMillis)
