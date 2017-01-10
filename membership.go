@@ -77,6 +77,8 @@ func Begin() {
 
 	logInfo("My host address:", thisHostAddress)
 
+	go listenUDP(GetListenPort())
+
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
 	updateNodeStatus(thisHost, StatusAlive, 0)
@@ -91,8 +93,6 @@ func Begin() {
 			AddNode(n)
 		}
 	}
-
-	go listenUDP(GetListenPort())
 
 	go startTimeoutCheckLoop()
 
@@ -111,10 +111,12 @@ func Begin() {
 				var dnc *deadNodeCounter
 				var ok bool
 
-				if dnc, ok = deadNodeRetries[node.Address()]; !ok {
+				deadNodeRetries.Lock()
+				if dnc, ok = deadNodeRetries.m[node.Address()]; !ok {
 					dnc = &deadNodeCounter{retry: 1, retryCountdown: 2}
-					deadNodeRetries[node.Address()] = dnc
+					deadNodeRetries.m[node.Address()] = dnc
 				}
+				deadNodeRetries.Unlock()
 
 				dnc.retryCountdown--
 
@@ -125,7 +127,10 @@ func Begin() {
 					if dnc.retry > maxDeadNodeRetries {
 						logDebug("Forgetting dead node", node.Address())
 
-						delete(deadNodeRetries, node.Address())
+						deadNodeRetries.Lock()
+						delete(deadNodeRetries.m, node.Address())
+						deadNodeRetries.Unlock()
+
 						RemoveNode(node)
 						continue
 					}

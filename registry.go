@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // All known nodes, living and dead. Dead nodes are pinged (far) less often,
@@ -31,7 +32,10 @@ var knownNodes = nodeMap{}
 // All nodes that have been updated "recently", living and dead
 var updatedNodes = nodeMap{}
 
-var deadNodeRetries = make(map[string]*deadNodeCounter)
+var deadNodeRetries = struct {
+	sync.RWMutex
+	m map[string]*deadNodeCounter
+}{m: make(map[string]*deadNodeCounter)}
 
 const maxDeadNodeRetries = 10
 
@@ -278,7 +282,9 @@ func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32) {
 		}
 
 		if status != StatusDead {
-			delete(deadNodeRetries, node.Address())
+			deadNodeRetries.Lock()
+			delete(deadNodeRetries.m, node.Address())
+			deadNodeRetries.Unlock()
 		}
 
 		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)\n",
