@@ -28,7 +28,8 @@ var node1a = Node{
 	port:        1234,
 	timestamp:   87878787,
 	status:      StatusAlive,
-	emitCounter: 42}
+	emitCounter: 42,
+	pingMillis:  PingNoData}
 
 // Identical but distinct instance from node1a
 var node1b = Node{
@@ -36,7 +37,8 @@ var node1b = Node{
 	port:        1234,
 	timestamp:   87878787,
 	status:      StatusAlive,
-	emitCounter: 42}
+	emitCounter: 42,
+	pingMillis:  PingNoData}
 
 // Different from node1a and node1b
 var node2 = Node{
@@ -44,7 +46,8 @@ var node2 = Node{
 	port:        10001,
 	timestamp:   GetNowInMillis(),
 	status:      StatusAlive,
-	emitCounter: 42}
+	emitCounter: 42,
+	pingMillis:  PingNoData}
 
 var message1a = message{
 	sender:          &node1a,
@@ -81,9 +84,11 @@ func TestEncodeDecodeBasic(t *testing.T) {
 	timestamp := uint32(87878787)
 
 	sender := Node{
-		ip:        net.IP([]byte{127, 0, 0, 1}),
-		port:      1234,
-		timestamp: timestamp}
+		ip:         net.IP([]byte{127, 0, 0, 1}),
+		port:       1234,
+		timestamp:  timestamp,
+		pingMillis: PingNoData,
+	}
 
 	message := message{
 		sender:          &sender,
@@ -115,14 +120,18 @@ func TestEncodeDecode1Member(t *testing.T) {
 	timestamp := uint32(87878787)
 
 	sender := Node{
-		ip:        net.IP([]byte{127, 0, 0, 1}),
-		port:      1234,
-		timestamp: timestamp}
+		ip:         net.IP([]byte{127, 0, 0, 1}),
+		port:       1234,
+		timestamp:  timestamp,
+		pingMillis: PingNoData,
+	}
 
 	member := Node{
-		ip:        net.IP([]byte{127, 0, 0, 2}),
-		port:      9000,
-		timestamp: timestamp}
+		ip:         net.IP([]byte{127, 0, 0, 2}),
+		port:       9000,
+		timestamp:  timestamp,
+		pingMillis: PingNoData,
+	}
 
 	message := message{
 		sender:          &sender,
@@ -164,14 +173,16 @@ func TestEncodeDecode1MemberBroadcast(t *testing.T) {
 	timestamp := uint32(87878787)
 
 	sender := Node{
-		ip:        net.IP([]byte{127, 0, 0, 1}),
-		port:      1234,
-		timestamp: timestamp}
+		ip:         net.IP([]byte{127, 0, 0, 1}),
+		port:       1234,
+		timestamp:  timestamp,
+		pingMillis: PingNoData}
 
 	member := Node{
-		ip:        net.IP([]byte{127, 0, 0, 2}),
-		port:      9000,
-		timestamp: timestamp}
+		ip:         net.IP([]byte{127, 0, 0, 2}),
+		port:       9000,
+		timestamp:  timestamp,
+		pingMillis: PingNoData}
 
 	message := message{
 		sender:          &sender,
