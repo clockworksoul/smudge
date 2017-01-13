@@ -67,9 +67,10 @@ func Begin() {
 	}
 
 	me := Node{
-		ip:        ip,
-		port:      uint16(GetListenPort()),
-		timestamp: GetNowInMillis(),
+		ip:         ip,
+		port:       uint16(GetListenPort()),
+		timestamp:  GetNowInMillis(),
+		pingMillis: PingNoData,
 	}
 
 	thisHostAddress = me.Address()
@@ -344,6 +345,11 @@ func receiveVerbAckUDP(msg message) error {
 func notePingResponseTime(pack *pendingAck) {
 	// Note the elapsed time
 	elapsedMillis := pack.elapsed()
+
+	pack.node.pingMillis = int(elapsedMillis)
+
+	// For the purposes of timeout tolerance, we treat all pings less than
+	// 10 as 10.
 	if elapsedMillis < 10 {
 		elapsedMillis = 10
 	}
@@ -418,14 +424,16 @@ func startTimeoutCheckLoop() {
 				case packPingReq:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
-					if knownNodes.contains(pack.node) {
+					if knownNodes.contains(pack.callback) {
 						updateNodeStatus(pack.callback, StatusDead, currentHeartbeat)
+						pack.callback.pingMillis = PingTimedOut
 					}
 				case packNFP:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
 					if knownNodes.contains(pack.node) {
 						updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
+						pack.callback.pingMillis = PingTimedOut
 					}
 				}
 

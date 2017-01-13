@@ -88,9 +88,7 @@ func CreateNodeByAddress(address string) (*Node, error) {
 	ip, port, err := parseNodeAddress(address)
 
 	if err == nil {
-		node := Node{ip: ip, port: port, timestamp: GetNowInMillis()}
-
-		return &node, nil
+		return CreateNodeByIP(ip, port)
 	}
 
 	return nil, err
@@ -100,7 +98,14 @@ func CreateNodeByAddress(address string) (*Node, error) {
 // IP address and port number. This doesn't add the node to the list of live
 // nodes; use AddNode().
 func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
-	return &Node{ip: ip, port: port, timestamp: GetNowInMillis()}, nil
+	node := Node{
+		ip:         ip,
+		port:       port,
+		timestamp:  GetNowInMillis(),
+		pingMillis: PingNoData,
+	}
+
+	return &node, nil
 }
 
 // GetLocalIP queries the host interface to determine the local IPv4 of this

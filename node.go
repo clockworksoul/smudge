@@ -22,12 +22,23 @@ import (
 	"time"
 )
 
+const (
+	// PingNoData is returned by n.PingMillis() to indicate that a node has
+	// not yet been pinged, and therefore no ping data exists.
+	PingNoData int = -1
+
+	// PingTimedOut is returned by n.PingMillis() to indicate that a node's
+	// last PING timed out. This is the typical value for dead nodes.
+	PingTimedOut int = -2
+)
+
 // Node represents a single node in the cluster.
 type Node struct {
 	ip          net.IP
 	port        uint16
 	timestamp   uint32
 	address     string
+	pingMillis  int
 	status      NodeStatus
 	emitCounter int8
 	heartbeat   uint32
@@ -58,6 +69,14 @@ func (n *Node) EmitCounter() int8 {
 // IP returns the IP associated with this node.
 func (n *Node) IP() net.IP {
 	return n.ip
+}
+
+// PingMillis returns the milliseconds transpired between the most recent
+// PING to this node and its responded ACK. If this node has not yet been
+// pinged, this vaue will be PingNoData (-1). If this node's last PING timed
+// out, this value will be PingTimedOut (-2).
+func (n *Node) PingMillis() int {
+	return n.pingMillis
 }
 
 // Port returns the port associated with this node.
