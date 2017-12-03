@@ -33,7 +33,53 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 ### Deviations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
 * Dead nodes are not immediately removed, but are instead periodically re-tried (with exponential backoff) for a time before finally being removed.
-* Smudge allows the transsion of short, arbitrary-content broadcasts to all healthy nodes.
+* Smudge allows the transmission of short, arbitrary-content broadcasts to all healthy nodes.
+
+
+## How to build
+
+### Building the Docker image
+
+Although Smudge is intended to be directly extended, a Dockerfile is provided for testing and proofs-of-function.
+
+The Dockerfile uses a multi-stage build, so Docker 17.05 or higher is required. The build compiles the code in a dedicated Golang container and drops the resulting binary into a 'scratch' image for execution. This makes a `Makefile` or `build.sh` largely superfluous and removed the need to configure a local environment.
+
+To execute the build, you simply need to do the following:
+
+```
+docker build -t clockworksoul/smudge:latest .
+```
+
+### Building the binary with the Go compiler
+
+#### Set up your Golang environment
+
+If you already have a `$GOPATH` set up, you can skip to the following section.
+
+First, you'll need to decide where your Go code and binaries will live. This will be your Gopath. You simply need to export this as `GOPATH`:
+
+```
+export GOPATH=~/go/
+```
+
+Change it to whatever works for you. You'll want to add this to your `.bashrc` or `.bash_profile`.
+
+#### Clone the repo into your GOPATH
+
+Clone the code into `$GOPATH/src/github.com/clockworksoul/smudge`. Using the full-qualified path structure makes it possible to import the code into other libraries, as well as Smudge's own `main()` function.
+
+```
+git clone git@github.com:clockworksoul/smudge.git $GOPATH/src/github.com/clockworksoul/smudge
+```
+
+#### Execute your build
+
+Once you have a `$GOPATH` already configured and the repository correctly cloned into `$GOPATH/src/github.com/clockworksoul/smudge`, you can execute the following:
+```
+go build -a -installsuffix cgo -o smudge github.com/clockworksoul/smudge/smudge
+```
+
+The binary, compiled for your current environment, will be present in your present working directory.
 
 
 ## How to use
