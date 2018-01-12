@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,17 +28,17 @@ import (
 // Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
 // Bytes 05-06 Sender response port
 // Bytes 07-10 Sender current heartbeat
-// ---[ Per member (11 bytes)]---
+// ---[ Per member (23 bytes)]---
 // Bytes 00    Member status byte
-// Bytes 01-04 Member host IP
-// Bytes 05-06 Member host response port
-// Bytes 07-10 Sender current heartbeat
-// ---[ Per broadcast (1 allowed) (11+N bytes) ]
-// Bytes 00-03 Origin IP
-// Bytes 04-05 Origin response port
-// Bytes 06-09 Origin broadcast counter
-// Bytes 10-11 Payload length (bytes)
-// Bytes 12-NN Payload
+// Bytes 01-16 Member host IP (01-04 for IPv4)
+// Bytes 17-18 Member host response port (05-06 for IPv4)
+// Bytes 19-22 Sender current heartbeat (07-10 for IPv4)
+// ---[ Per broadcast (1 allowed) (23+N bytes) ]
+// Bytes 00-15 Origin IP (00-03 for IPv4)
+// Bytes 16-17 Origin response port (04-05 for IPv4)
+// Bytes 18-21 Origin broadcast counter (06-09 for IPv4)
+// Bytes 22-23 Payload length (bytes) (10-11 for IPv4)
+// Bytes 24-NN Payload (12-NN for IPv4)
 
 type message struct {
 	sender          *Node
@@ -98,16 +98,16 @@ func (m *message) addMember(n *Node, status NodeStatus, heartbeat uint32) error 
 // Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
 // Bytes 05-06 Sender response port
 // Bytes 07-10 Sender ID Code
-// ---[ Per member (11 bytes)]---
+// ---[ Per member (23 bytes, 11 bytes for IPv4)]---
 // Bytes 00    Member status byte
-// Bytes 01-04 Member host IP
-// Bytes 05-06 Member host response port
-// Bytes 07-10 Member heartbeat
+// Bytes 01-16 Member host IP (01-04 for IPv4)
+// Bytes 17-18 Member host response port (05-06 for IPv4)
+// Bytes 19-22 Sender current heartbeat (07-10 for IPv4)
 
 func (m *message) encode() []byte {
-	size := 11 + (len(m.members) * 11)
+	size := 11 + (len(m.members) * (7 + ipLen))
 	if m.broadcast != nil {
-		size += 12 + len(m.broadcast.bytes)
+		size += 8 + ipLen + len(m.broadcast.bytes)
 	}
 
 	bytes := make([]byte, size, size)
@@ -128,7 +128,7 @@ func (m *message) encode() []byte {
 	// Bytes 03-06 ID Code
 	p += encodeUint32(m.senderHeartbeat, bytes, p)
 
-	// Each member data requires 11 bytes.
+	// Each member data requires 23 bytes (11 for IPv4).
 	for _, member := range m.members {
 		mnode := member.node
 		mstatus := member.status
@@ -138,17 +138,22 @@ func (m *message) encode() []byte {
 		bytes[p] = byte(mstatus)
 		p++
 
-		// Bytes (p + 01) to (p + 04): Originating host IP
-		ipb := mnode.ip
-		for i := 0; i < 4; i++ {
+		var ipb net.IP
+		//TODO check below...
+		// Bytes (p + 01) to (p + 16): Originating host IP
+		if ipb = mnode.ip; ipLen == net.IPv4len {
+			ipb = mnode.ip.To4()
+		}
+
+		for i := 0; i < ipLen; i++ {
 			bytes[p+i] = ipb[i]
 		}
-		p += 4
+		p += ipLen
 
-		// Bytes (p + 05) to (p + 06): Originating host response port
+		// Bytes (p + 17) to (p + 18): Originating host response port
 		p += encodeUint16(mnode.port, bytes, p)
 
-		// Bytes (p + 07) to (p + 10): Originating message code
+		// Bytes (p + 19) to (p + 22): Originating message code
 		p += encodeUint32(mcode, bytes, p)
 	}
 
@@ -208,27 +213,23 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 	senderHeartbeat, p := decodeUint32(bytes, p)
 
 	// Now that we have the IP and port, we can find the Node.
-	sender := knownNodes.getByIP(sourceIP.To4(), senderPort)
+	sender := knownNodes.getByIP(sourceIP, senderPort)
 
 	// We don't know this node, so create a new one!
 	if sender == nil {
-		sender, _ = CreateNodeByIP(sourceIP.To4(), senderPort)
+		sender, _ = CreateNodeByIP(sourceIP, senderPort)
 	}
 
 	// Now that we have the verb, node, and code, we can build the mesage
 	m := newMessage(verb, sender, senderHeartbeat)
 
-	memberLastIndex := p + (memberCount * 11)
+	memberLastIndex := p + (memberCount * (7 + ipLen))
 	if len(bytes) > p {
 		m.members = decodeMembers(memberCount, bytes[p:memberLastIndex])
 	}
 
 	if len(bytes) > memberLastIndex {
 		m.broadcast, err = decodeBroadcast(bytes[memberLastIndex:])
-
-		if m.broadcast.origin.IP()[0] == 0 || m.broadcast.origin.Port() == 0 {
-			err = errors.New("Received originless broadcast!")
-		}
 	}
 
 	return m, err
@@ -236,9 +237,9 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 
 func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 	// Bytes 00    Member status byte
-	// Bytes 01-04 Member host IP
-	// Bytes 05-06 Member host response port
-	// Bytes 07-10 Member heartbeat
+	// Bytes 01-16 Member host IP (01-04 for IPv4)
+	// Bytes 17-18 Member host response port (05-06 for IPv4)
+	// Bytes 19-22 Member heartbeat (07-10 for IPv4)
 
 	members := make([]*messageMember, 0, 1)
 
@@ -256,20 +257,20 @@ func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 		mstatus = NodeStatus(bytes[p])
 		p++
 
-		// Bytes 01-04 member IP
-		if bytes[p] > 0 {
-			mip = net.IPv4(
-				bytes[p+0],
-				bytes[p+1],
-				bytes[p+2],
-				bytes[p+3]).To4()
+		if ipLen == net.IPv6len {
+			// Bytes 01-16 member IP
+			mip = make(net.IP, net.IPv6len)
+			copy(mip, bytes[p:p+16])
+		} else {
+			// Bytes 01-04 member IPv4
+			mip = net.IPv4(bytes[p+0], bytes[p+1], bytes[p+2], bytes[p+3])
 		}
-		p += 4
+		p += ipLen
 
-		// Bytes 05-06 member response port
+		// Bytes 17-18 member response port
 		mport, p = decodeUint16(bytes, p)
 
-		// Bytes 07-10 member heartbeat
+		// Bytes 19-22 member heartbeat
 		mcode, p = decodeUint32(bytes, p)
 
 		if len(mip) > 0 {

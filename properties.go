@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@ limitations under the License.
 package smudge
 
 import (
+	"net"
 	"os"
 	"regexp"
 	"strconv"
@@ -51,6 +52,13 @@ const (
 	// DefaultListenPort is the default UDP listen port.
 	DefaultListenPort int = 9999
 
+	// EnvVarListenIP is the name of the environment variable that sets
+	// the listen IP.
+	EnvVarListenIP = "SMUDGE_LISTEN_IP"
+
+	// DefaultListenIP is the default listen IP.
+	DefaultListenIP = "127.0.0.1"
+
 	// EnvVarMaxBroadcastBytes is the name of the environment variable that
 	// the maximum byte length for broadcast payloads. Note that increasing
 	// this runs the risk of packet fragmentation and dropped messages.
@@ -66,6 +74,8 @@ const (
 var heartbeatMillis int
 
 var listenPort int
+
+var listenIP net.IP
 
 var initialHosts []string
 
@@ -100,6 +110,15 @@ func GetListenPort() int {
 	return listenPort
 }
 
+// GetListenIP returns the IP that this host will listen on.
+func GetListenIP() net.IP {
+	if listenIP == nil {
+		listenIP = net.ParseIP(getStringVar(EnvVarListenIP, DefaultListenIP))
+	}
+
+	return listenIP
+}
+
 // GetMaxBroadcastBytes returns the maximum byte length for broadcast payloads.
 func GetMaxBroadcastBytes() int {
 	if maxBroadcastBytes == 0 {
@@ -132,6 +151,16 @@ func SetListenPort(val int) {
 	}
 }
 
+// SetListenIP sets the IP to listen on. It has no effect once
+// Begin() has been called.
+func SetListenIP(val net.IP) {
+	if val == nil {
+		listenIP = net.ParseIP(DefaultListenIP)
+	} else {
+		listenIP = val
+	}
+}
+
 // SetMaxBroadcastBytes sets the maximum byte length for broadcast payloads.
 // Note that increasing this beyond the default of 256 runs the risk of packet
 // fragmentation and dropped messages.
@@ -145,7 +174,7 @@ func SetMaxBroadcastBytes(val int) {
 
 // Gets an environmental variable "key". If it does not exist, "defaultVal" is
 // returned; if it does, it attempts to convert to an integer, returning
-// "defaultVal" is it fails.
+// "defaultVal" if it fails.
 func getIntVar(key string, defaultVal int) int {
 	valueString := os.Getenv(key)
 	valueInt := defaultVal
@@ -166,7 +195,7 @@ func getIntVar(key string, defaultVal int) int {
 
 // Gets an environmental variable "key". If it does not exist, "defaultVal" is
 // returned; if it does, it attempts to convert to a string slice, returning
-// "defaultVal" is it fails.
+// "defaultVal" if it fails.
 func getStringArrayVar(key string, defaultVal string) []string {
 	valueString := os.Getenv(key)
 
@@ -177,6 +206,19 @@ func getStringArrayVar(key string, defaultVal string) []string {
 	valueSlice := splitDelimmitedString(valueString, stringListDelimitRegex)
 
 	return valueSlice
+}
+
+// Gets an environmental variable "key". If it does not exist, "defaultVal" is
+// returned; if it does, it attempts to convert to a string, returning
+// "defaultVal" if it fails.
+func getStringVar(key string, defaultVal string) string {
+	valueString := os.Getenv(key)
+
+	if valueString == "" {
+		valueString = defaultVal
+	}
+
+	return valueString
 }
 
 // Splits a string on a regular expression.
