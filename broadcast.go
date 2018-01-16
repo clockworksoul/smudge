@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -127,38 +127,38 @@ func BroadcastString(str string) error {
 	return BroadcastBytes([]byte(str))
 }
 
-// Message contents
+// Message contents for IPv6
 // Bytes       Content
 // ------------------------
-// Bytes 00-03 Origin IP
-// Bytes 04-05 Origin response port
-// Bytes 06-09 Origin broadcast counter
-// Bytes 10-11 Payload length (bytes)
-// Bytes 12-NN Payload
+// Bytes 00-15 Origin IP (00-03 for IPv4)
+// Bytes 16-17 Origin response port (04-05 for IPv4)
+// Bytes 18-21 Origin broadcast counter (06-09 for IPv4)
+// Bytes 22-23 Payload length (bytes) (10-11 for IPv4)
+// Bytes 24-NN Payload (12-NN for IPv4)
 func (b *Broadcast) encode() []byte {
-	size := 12 + len(b.bytes)
+	size := 8 + ipLen + len(b.bytes)
 	bytes := make([]byte, size, size)
 
 	// Index pointer
 	p := 0
 
-	// Bytes 00-03: Origin IP
+	// Bytes 00-15: Origin IP
 	ip := b.origin.IP()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < ipLen; i++ {
 		bytes[p+i] = ip[i]
 	}
-	p += 4
+	p += ipLen
 
-	// Bytes 04-05 Origin response port
+	// Bytes 16-17 Origin response port
 	p += encodeUint16(b.origin.Port(), bytes, p)
 
-	// Bytes 06-09 Origin broadcast counter
+	// Bytes 18-21 Origin broadcast counter
 	p += encodeUint32(b.index, bytes, p)
 
-	// Bytes 10-11 Payload length (bytes)
+	// Bytes 22-23 Payload length (bytes)
 	p += encodeUint16(uint16(len(b.bytes)), bytes, p)
 
-	// Bytes 12-NN Payload
+	// Bytes 24-NN Payload
 	for i, by := range b.bytes {
 		bytes[i+p] = by
 	}
@@ -173,11 +173,11 @@ func (b *Broadcast) encode() []byte {
 // Message contents
 // Bytes       Content
 // ------------------------
-// Bytes 00-03 Origin IP
-// Bytes 04-05 Origin response port
-// Bytes 06-09 Origin broadcast counter
-// Bytes 10-11 Payload length (bytes)
-// Bytes 12-NN Payload
+// Bytes 00-15 Origin IP (00-03 on IPv4)
+// Bytes 16-17 Origin response port (04-05 on IPv4)
+// Bytes 18-21 Origin broadcast counter (06-09 on IPv4)
+// Bytes 22-23 Payload length (bytes) (10-11 on IPv4)
+// Bytes 24-NN Payload (12-NN on IPv4)
 func decodeBroadcast(bytes []byte) (*Broadcast, error) {
 	var index uint32
 	var port uint16
@@ -187,29 +187,32 @@ func decodeBroadcast(bytes []byte) (*Broadcast, error) {
 	// An index pointer
 	p := 0
 
-	// Bytes 00-03 Origin IP
-	ip = net.IPv4(
-		bytes[p+0],
-		bytes[p+1],
-		bytes[p+2],
-		bytes[p+3]).To4()
-	p += 4
+	if ipLen == net.IPv6len {
+		// Bytes 00-15 Origin IP
+		ip = make(net.IP, net.IPv6len)
+		copy(ip, bytes[p:p+16])
+	} else {
+		// Bytes 00-03 Origin IPv4
+		ip = net.IPv4(bytes[p+0], bytes[p+1], bytes[p+2], bytes[p+3])
+	}
 
-	// Bytes 04-05 Origin response port
+	p += ipLen
+
+	// Bytes 16-17 Origin response port
 	port, p = decodeUint16(bytes, p)
 
-	// Bytes 06-09 Origin broadcast counter
+	// Bytes 18-21 Origin broadcast counter
 	index, p = decodeUint32(bytes, p)
 
-	// Bytes 10-11 Payload length (bytes)
+	// Bytes 22-23 Payload length (bytes)
 	length, p = decodeUint16(bytes, p)
 
 	// Now that we have the IP and port, we can find the Node.
-	origin := knownNodes.getByIP(ip.To4(), port)
+	origin := knownNodes.getByIP(ip, port)
 
 	// We don't know this node, so create a new one!
 	if origin == nil {
-		origin, _ = CreateNodeByIP(ip.To4(), port)
+		origin, _ = CreateNodeByIP(ip, port)
 	}
 
 	bcast := Broadcast{
@@ -218,7 +221,13 @@ func decodeBroadcast(bytes []byte) (*Broadcast, error) {
 		bytes:       bytes[p : p+int(length)],
 		emitCounter: int8(emitCount())}
 
-	if origin.IP()[0] == 0 || origin.Port() == 0 {
+	// normalize to IPv4 or IPv6 to check below
+	originIP := origin.IP()
+	if originIP.To4() != nil {
+		originIP = originIP.To4()
+	}
+
+	if (originIP[0] == 0) || origin.Port() == 0 {
 		logWarn("Received originless broadcast")
 
 		return &bcast,

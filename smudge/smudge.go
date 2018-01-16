@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/clockworksoul/smudge"
+	"log"
 )
 
 func main() {
@@ -40,9 +41,16 @@ func main() {
 
 	flag.Parse()
 
-	smudge.SetLogThreshold(smudge.LogInfo)
+	ip, err := smudge.GetLocalIP()
+	if err != nil {
+		log.Fatal("Could not get local ip:", err)
+	}
+
+	smudge.SetLogThreshold(smudge.LogTrace)
 	smudge.SetListenPort(listenPort)
 	smudge.SetHeartbeatMillis(heartbeatMillis)
+	smudge.SetListenIP(ip)
+	//smudge.SetMaxBroadcastBytes(1280) // 1280 for IPv6
 
 	if nodeAddress != "" {
 		node, err := smudge.CreateNodeByAddress(nodeAddress)
