@@ -447,9 +447,6 @@ func startTimeoutCheckLoop() {
 func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code uint32) error {
 	// Transmit the ACK
 	remoteAddr, err := net.ResolveUDPAddr("udp", node.Address())
-	if err != nil {
-		return err
-	}
 
 	c, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {

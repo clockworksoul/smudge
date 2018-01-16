@@ -154,6 +154,10 @@ func SetListenPort(val int) {
 // SetListenIP sets the IP to listen on. It has no effect once
 // Begin() has been called.
 func SetListenIP(val net.IP) {
+	if len(AllNodes()) > 0 {
+		logWarn("Do not call SetListenIP() after nodes have been added, it may cause unexpected behavior.")
+	}
+
 	if val == nil {
 		listenIP = net.ParseIP(DefaultListenIP)
 	} else {

@@ -12,6 +12,8 @@ WORKDIR /go/bin/
 
 COPY . /go/src/github.com/clockworksoul/smudge
 
+RUN go test github.com/clockworksoul/smudge
+
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o smudge github.com/clockworksoul/smudge/smudge
 
 # Part 2: Build the Smudge image proper

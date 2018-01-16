@@ -101,7 +101,10 @@ func (n *Node) Touch() {
 }
 
 func nodeAddressString(ip net.IP, port uint16) string {
-	return fmt.Sprintf("%s:%d", ip, port)
+	if ip.To4() != nil {
+		return fmt.Sprintf("%s:%d", ip.String(), port)
+	}
+	return fmt.Sprintf("[%s]:%d", ip.String(), port)
 }
 
 // GetNowInMillis returns the current local time in milliseconds since the

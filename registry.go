@@ -17,11 +17,10 @@ limitations under the License.
 package smudge
 
 import (
-	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -228,31 +227,50 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	var port uint16
 	var err error
 
-	if strings.Contains(hostAndMaybePort, ":") {
-		splode := strings.Split(hostAndMaybePort, ":")
+	ip = net.ParseIP(hostAndMaybePort)
+	port = uint16(GetListenPort())
 
-		if len(splode) == 2 {
-			p, e := strconv.ParseUint(splode[1], 10, 16)
+	host, sport, err := net.SplitHostPort(hostAndMaybePort)
 
-			host = splode[0]
+	if err == nil {
+		if sport != "" {
+			p, e := strconv.ParseUint(sport, 10, 16)
 			port = uint16(p)
 			err = e
-		} else {
-			err = errors.New("too many colons in argument " + hostAndMaybePort)
 		}
+
+		ip = net.ParseIP(host)
 	} else {
-		host = hostAndMaybePort
+		err = nil
+		ip = net.ParseIP(hostAndMaybePort)
 		port = uint16(GetListenPort())
+
+		if host == "" {
+			host = hostAndMaybePort
+		}
 	}
 
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return ip, port, err
-	}
+	if ip == nil {
+		fmt.Printf("Host = %s\n", host)
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			return ip, port, err
+		}
 
-	for _, i := range ips {
-		if !i.IsLoopback() {
-			ip = i
+		for _, i := range ips {
+			if !i.IsLoopback() {
+				if GetListenIP().To4() != nil && i.To4() != nil {
+					ip = i
+					break
+				} else if GetListenIP().To4() == nil && i.To4() == nil {
+					ip = i
+					break
+				}
+			}
+		}
+
+		if ip == nil {
+			err = fmt.Errorf("Could not parse the address of node %s", hostAndMaybePort)
 		}
 	}
 

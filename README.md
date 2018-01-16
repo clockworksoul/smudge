@@ -50,6 +50,28 @@ To execute the build, you simply need to do the following:
 docker build -t clockworksoul/smudge:latest .
 ```
 
+### Testing the Docker image
+
+You can test Smudge locally using the Docker image. First create a network to use for your Smudge nodes and then add some nodes to the network.
+
+For IPv4 you can use the following commands:
+
+```bash
+docker network create smudge
+docker run -i -t --network smudge --rm clockworksoul/smudge:latest /smudge
+# you can add nodes with the following command
+docker run -i -t --network smudge --rm clockworksould/smudge:latest /smudge -node 172.20.0.2
+```
+
+To try out Smudge with IPv6 you can use the following commands:
+
+```bash
+docker network create --ipv6 --subnet fd02:6b8:b010:9020:1::/80 smudge6
+docker run -i -t --network smudge6 --rm clockworksoul/smudge:latest /smudge
+# you can add nodes with the following command
+docker run -i -t --network smudge6 --rm clockworksould/smudge:latest /smudge -node [fd02:6b8:b010:9020:1::2]:9999
+```
+
 ### Building the binary with the Go compiler
 
 #### Set up your Golang environment
