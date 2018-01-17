@@ -251,7 +251,6 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	}
 
 	if ip == nil {
-		fmt.Printf("Host = %s\n", host)
 		ips, err := net.LookupIP(host)
 		if err != nil {
 			return ip, port, err
