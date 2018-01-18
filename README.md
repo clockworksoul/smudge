@@ -26,7 +26,7 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 
 
 ## Known issues
-* Broadcasts are limited to 256 bytes, or 1280 bytes when using IPv6.
+* Broadcasts are limited to 256 bytes, or 512 bytes when using IPv6.
 * No WAN support: only local-network, private IPs are supported.
 * No multicast discovery.
 
@@ -131,7 +131,7 @@ If you prefer to direct the behavior of the service using the API, the calls are
 smudge.SetListenPort(9999)
 smudge.SetHeartbeatMillis(250)
 smudge.SetListenIP(net.ParseIP("127.0.0.1"))
-smudge.SetMaxBroadcastBytes(256) // set to 1280 when using IPv6
+smudge.SetMaxBroadcastBytes(256) // set to 512 when using IPv6
 ```
 
 
