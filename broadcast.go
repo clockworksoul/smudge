@@ -144,6 +144,10 @@ func (b *Broadcast) encode() []byte {
 
 	// Bytes 00-15: Origin IP
 	ip := b.origin.IP()
+	if ip.To4() != nil {
+		ip = ip.To4()
+	}
+
 	for i := 0; i < ipLen; i++ {
 		bytes[p+i] = ip[i]
 	}
@@ -221,17 +225,10 @@ func decodeBroadcast(bytes []byte) (*Broadcast, error) {
 		bytes:       bytes[p : p+int(length)],
 		emitCounter: int8(emitCount())}
 
-	// normalize to IPv4 or IPv6 to check below
-	originIP := origin.IP()
-	if originIP.To4() != nil {
-		originIP = originIP.To4()
-	}
-
-	if (originIP[0] == 0) || origin.Port() == 0 {
-		logWarn("Received originless broadcast")
-
-		return &bcast,
-			errors.New("received originless broadcast")
+	err := checkOrigin(origin)
+	if err != nil {
+		logWarn(err)
+		return &bcast, err
 	}
 
 	if int(length) > GetMaxBroadcastBytes() {
@@ -283,8 +280,9 @@ func receiveBroadcast(broadcast *Broadcast) {
 		return
 	}
 
-	if broadcast.Origin().IP()[0] == 0 || broadcast.Origin().Port() == 0 {
-		logWarn("Received originless broadcast")
+	err := checkOrigin(broadcast.Origin())
+	if err != nil {
+		logWarn(err)
 		return
 	}
 
@@ -304,6 +302,20 @@ func receiveBroadcast(broadcast *Broadcast) {
 
 		doBroadcastUpdate(broadcast)
 	}
+}
+
+// checkBroadcastOrigin checks wether the origin is set correctly
+func checkOrigin(origin *Node) error {
+	// normalize to IPv4 or IPv6 to check below
+	ip := origin.IP()
+	if ip.To4() != nil {
+		ip = ip.To4()
+	}
+
+	if (ip[0] == 0) || origin.Port() == 0 {
+		return errors.New("Received originless broadcast")
+	}
+	return nil
 }
 
 // byBroadcastEmitCounter implements sort.Interface for []*Broadcast based on
