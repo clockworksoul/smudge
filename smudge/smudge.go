@@ -52,7 +52,7 @@ func main() {
 	smudge.SetListenIP(ip)
 
 	if ip.To4() == nil {
-		smudge.SetMaxBroadcastBytes(1280) // 1280 for IPv6
+		smudge.SetMaxBroadcastBytes(512) // 512 for IPv6
 	}
 
 	if nodeAddress != "" {
