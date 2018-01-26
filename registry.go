@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,11 +17,10 @@ limitations under the License.
 package smudge
 
 import (
-	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -108,9 +107,10 @@ func CreateNodeByIP(ip net.IP, port uint16) (*Node, error) {
 	return &node, nil
 }
 
-// GetLocalIP queries the host interface to determine the local IPv4 of this
-// machine. If a local IPv4 cannot be found, then nil is returned. If the
-// query to the underlying OS fails, an error is returned.
+// GetLocalIP queries the host interface to determine the local IP address of this
+// machine. If a local IP address cannot be found, then nil is returned. Local IPv6
+// address takes presedence over a local IPv4 address. If the query to the underlying
+// OS fails, an error is returned.
 func GetLocalIP() (net.IP, error) {
 	var ip net.IP
 
@@ -123,6 +123,8 @@ func GetLocalIP() (net.IP, error) {
 		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
 				ip = ipnet.IP.To4()
+			} else {
+				ip = ipnet.IP
 				break
 			}
 		}
@@ -225,40 +227,49 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 	var port uint16
 	var err error
 
-	if strings.Contains(hostAndMaybePort, ":") {
-		splode := strings.Split(hostAndMaybePort, ":")
+	ip = net.ParseIP(hostAndMaybePort)
+	port = uint16(GetListenPort())
 
-		if len(splode) == 2 {
-			p, e := strconv.ParseUint(splode[1], 10, 16)
+	host, sport, err := net.SplitHostPort(hostAndMaybePort)
 
-			host = splode[0]
+	if err == nil {
+		if sport != "" {
+			p, e := strconv.ParseUint(sport, 10, 16)
 			port = uint16(p)
 			err = e
-		} else {
-			err = errors.New("too many colons in argument " + hostAndMaybePort)
 		}
+
+		ip = net.ParseIP(host)
 	} else {
-		host = hostAndMaybePort
+		err = nil
+		ip = net.ParseIP(hostAndMaybePort)
 		port = uint16(GetListenPort())
-	}
 
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return ip, port, err
-	}
-
-	for _, i := range ips {
-		if i.To4() != nil {
-			ip = i.To4()
+		if host == "" {
+			host = hostAndMaybePort
 		}
 	}
 
-	if ip.IsLoopback() {
-		ip, err = GetLocalIP()
+	if ip == nil {
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			return ip, port, err
+		}
+
+		for _, i := range ips {
+			if !i.IsLoopback() {
+				if GetListenIP().To4() != nil && i.To4() != nil {
+					ip = i
+					break
+				} else if GetListenIP().To4() == nil && i.To4() == nil {
+					ip = i
+					break
+				}
+			}
+		}
 
 		if ip == nil {
-			logWarn("Warning: Could not resolve host IP. Using 127.0.0.1")
-			ip = []byte{127, 0, 0, 1}
+			err = fmt.Errorf("Could not parse the address of node %s", hostAndMaybePort)
 		}
 	}
 

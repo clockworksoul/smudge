@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,6 +42,8 @@ var thisHostAddress string
 
 var thisHost *Node
 
+var ipLen = net.IPv4len
+
 // This flag is set whenever a known node is added or removed.
 var knownNodesModifiedFlag = false
 
@@ -55,19 +57,15 @@ var pingdata = newPingData(150, 50)
 // Note that this is a blocking function, so act appropriately.
 func Begin() {
 	// Add this host.
-	ip, err := GetLocalIP()
-	if err != nil {
-		logFatal("Could not get local ip:", err)
-		return
-	}
+	logfInfo("Using listen IP: %s\n", listenIP)
 
-	if ip == nil {
-		logWarn("Warning: Could not resolve host IP. Using 127.0.0.1")
-		ip = []byte{127, 0, 0, 1}
+	// Use IPv6 address length if the listen IP is not an IPv4 address
+	if listenIP.To4() == nil {
+		ipLen = net.IPv6len
 	}
 
 	me := Node{
-		ip:         ip,
+		ip:         listenIP,
 		port:       uint16(GetListenPort()),
 		timestamp:  GetNowInMillis(),
 		pingMillis: PingNoData,
@@ -245,7 +243,7 @@ func listenUDP(port int) error {
 	defer c.Close()
 
 	for {
-		buf := make([]byte, 512)
+		buf := make([]byte, 2048) // big enough to fit 1280 IPv6 UDP message
 		n, addr, err := c.ReadFromUDP(buf)
 		if err != nil {
 			logError("UDP read error: ", err)
@@ -449,9 +447,6 @@ func startTimeoutCheckLoop() {
 func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code uint32) error {
 	// Transmit the ACK
 	remoteAddr, err := net.ResolveUDPAddr("udp", node.Address())
-	if err != nil {
-		return err
-	}
 
 	c, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {

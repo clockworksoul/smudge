@@ -21,14 +21,14 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 * Low-bandwidth UDP-based failure detection and status dissemination.
 * Imposes a constant message load per group member, regardless of the number of members.
 * Member status changes are eventually detected by all non-faulty members of the cluster (strong completeness).
-* Supports transmission of short (256 byte) broadcasts that are propagated at most once to all present, healthy members.
+* Supports transmission of short broadcasts that are propagated at most once to all present, healthy members.
+* Supports both IPv4 and IPv6.
 
 
 ## Known issues
-* Broadcasts are limited to 256 bytes.
+* Broadcasts are limited to 256 bytes, or 512 bytes when using IPv6.
 * No WAN support: only local-network, private IPs are supported.
 * No multicast discovery.
-
 
 ### Deviations from [Motivala, et al](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
@@ -48,6 +48,28 @@ To execute the build, you simply need to do the following:
 
 ```
 docker build -t clockworksoul/smudge:latest .
+```
+
+### Testing the Docker image
+
+You can test Smudge locally using the Docker image. First create a network to use for your Smudge nodes and then add some nodes to the network.
+
+For IPv4 you can use the following commands:
+
+```bash
+docker network create smudge
+docker run -i -t --network smudge --rm clockworksoul/smudge:latest /smudge
+# you can add nodes with the following command
+docker run -i -t --network smudge --rm clockworksould/smudge:latest /smudge -node 172.20.0.2
+```
+
+To try out Smudge with IPv6 you can use the following commands:
+
+```bash
+docker network create --ipv6 --subnet fd02:6b8:b010:9020:1::/80 smudge6
+docker run -i -t --network smudge6 --rm clockworksoul/smudge:latest /smudge
+# you can add nodes with the following command
+docker run -i -t --network smudge6 --rm clockworksould/smudge:latest /smudge -node [fd02:6b8:b010:9020:1::2]:9999
 ```
 
 ### Building the binary with the Go compiler
@@ -92,29 +114,31 @@ Perhaps the simplest way of directing the behavior of the SWIM driver is by sett
 The following variables and their default values are as follows:
 
 ```
-Variable                   | Default | Description
--------------------------- | ------- | -------------------------------
-SMUDGE_HEARTBEAT_MILLIS    |     250 | Milliseconds between heartbeats
-SMUDGE_INITIAL_HOSTS       |         | Comma-delimmited list of known members as IP or IP:PORT.
-SMUDGE_LISTEN_PORT         |    9999 | UDP port to listen on
-SMUDGE_MAX_BROADCAST_BYTES |     256 | Maximum byte length of broadcast payloads
+Variable                   | Default   | Description
+-------------------------- | --------- | -------------------------------
+SMUDGE_HEARTBEAT_MILLIS    |     250   | Milliseconds between heartbeats
+SMUDGE_INITIAL_HOSTS       |           | Comma-delimmited list of known members as IP or IP:PORT.
+SMUDGE_LISTEN_PORT         |    9999   | UDP port to listen on
+SMUDGE_LISTEN_IP           | 127.0.0.1 | IP address to listen on
+SMUDGE_MAX_BROADCAST_BYTES |     256   | Maximum byte length of broadcast payloads
 ```
 
 
 ### Configuring the node with API calls
 If you prefer to direct the behavior of the service using the API, the calls are relatively straight-forward. Note that setting the application properties using this method overrides the behavior of environment variables.
 
-```
+```go
 smudge.SetListenPort(9999)
 smudge.SetHeartbeatMillis(250)
-smudge.SetMaxBroadcastBytes(256)
+smudge.SetListenIP(net.ParseIP("127.0.0.1"))
+smudge.SetMaxBroadcastBytes(256) // set to 512 when using IPv6
 ```
 
 
 ### Creating and adding a status change listener
 Creating a status change listener is very straight-forward:
 
-```
+```go
 type MyStatusListener struct {
 	smudge.StatusListener
 }
@@ -132,7 +156,7 @@ func main() {
 ### Creating and adding a broadcast listener
 Adding a broadcast listener is very similar to creating a status listener: 
 
-```
+```go
 type MyBroadcastListener struct {
 	smudge.BroadcastListener
 }
@@ -152,7 +176,7 @@ func main() {
 ### Adding a new member to the "known nodes" list
 Adding a new member to your known nodes list will also make that node aware of the adding server. Note that because this package doesn't yet support multicast notifications, at this time to join an existing cluster you must use this method to add at least one of that cluster's healthy member nodes.
 
-```
+```go
 node, err := smudge.CreateNodeByAddress("localhost:10000")
 if err == nil {
     smudge.AddNode(node)
@@ -181,11 +205,12 @@ The [`AllNodes()`](https://godoc.org/github.com/clockworksoul/smudge#AllNodes) c
 
 ### Everything in one place
 
-```
+```go
 package main
 
 import "github.com/clockworksoul/smudge"
 import "fmt"
+import "net"
 
 type MyStatusListener struct {
 	smudge.StatusListener
@@ -212,6 +237,7 @@ func main() {
 	// Set configuration options
 	smudge.SetListenPort(listenPort)
 	smudge.SetHeartbeatMillis(heartbeatMillis)
+	smudge.SetListenIP(net.ParseIP("127.0.0.1"))
 
 	// Add the status listener
 	smudge.AddStatusListener(MyStatusListener{})
