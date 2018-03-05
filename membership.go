@@ -140,7 +140,7 @@ func Begin() {
 
 			currentHeartbeat++
 
-			logfDebug("%d - hosts=%d (announce=%d forward=%d)\n",
+			logfTrace("%d - hosts=%d (announce=%d forward=%d)\n",
 				currentHeartbeat,
 				len(randomAllNodes),
 				emitCount(),
@@ -407,6 +407,10 @@ func startTimeoutCheckLoop() {
 			elapsed := pack.elapsed()
 			timeoutMillis := uint32(pingdata.nSigma(timeoutToleranceSigmas))
 
+			if timeoutMillis < 100 {
+				timeoutMillis = 100
+			}
+
 			// Ping requests are expected to take quite a bit longer.
 			// Just call it 2x for now.
 			if pack.packType == packPingReq {
@@ -423,15 +427,31 @@ func startTimeoutCheckLoop() {
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
 					if knownNodes.contains(pack.callback) {
-						updateNodeStatus(pack.callback, StatusDead, currentHeartbeat)
-						pack.callback.pingMillis = PingTimedOut
+						switch pack.callback.Status() {
+						case StatusDead:
+							break
+						case StatusSuspected:
+							updateNodeStatus(pack.callback, StatusDead, currentHeartbeat)
+							pack.callback.pingMillis = PingTimedOut
+						default:
+							updateNodeStatus(pack.callback, StatusSuspected, currentHeartbeat)
+							pack.callback.pingMillis = PingTimedOut
+						}
 					}
 				case packNFP:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
 					if knownNodes.contains(pack.node) {
-						updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
-						pack.callback.pingMillis = PingTimedOut
+						switch pack.node.Status() {
+						case StatusDead:
+							break
+						case StatusSuspected:
+							updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
+							pack.callback.pingMillis = PingTimedOut
+						default:
+							updateNodeStatus(pack.node, StatusSuspected, currentHeartbeat)
+							pack.callback.pingMillis = PingTimedOut
+						}
 					}
 				}
 
