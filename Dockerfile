@@ -4,7 +4,7 @@
 
 # Part 1: Compile the binary in a containerized Golang environment
 #
-FROM golang:1.7 as build
+FROM golang:1.10 as build
 
 MAINTAINER Matt Titmus <matthew.titmus@gmail.com>
 
