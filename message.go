@@ -139,10 +139,14 @@ func (m *message) encode() []byte {
 		p++
 
 		var ipb net.IP
-		//TODO check below...
-		// Bytes (p + 01) to (p + 16): Originating host IP
-		if ipb = mnode.ip; ipLen == net.IPv4len {
+
+		// Originating host IP
+		// IPv4: Bytes (p + 01) to (p + 04)
+		// IPv6: Bytes (p + 01) to (p + 16)
+		if ipLen == net.IPv4len {
 			ipb = mnode.ip.To4()
+		} else if ipLen == net.IPv6len {
+			ipb = mnode.ip.To16()
 		}
 
 		for i := 0; i < ipLen; i++ {
@@ -150,10 +154,14 @@ func (m *message) encode() []byte {
 		}
 		p += ipLen
 
-		// Bytes (p + 17) to (p + 18): Originating host response port
+		// Originating host response port
+		// IPv4: Bytes (p + 05) to (p + 06)
+		// IPv6: Bytes (p + 17) to (p + 18)
 		p += encodeUint16(mnode.port, bytes, p)
 
-		// Bytes (p + 19) to (p + 22): Originating message code
+		// Originating message code
+		// IPv4: Bytes (p + 07) to (p + 08)
+		// IPv6: Bytes (p + 19) to (p + 22)
 		p += encodeUint32(mcode, bytes, p)
 	}
 
