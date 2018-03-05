@@ -38,17 +38,39 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 
 ## How to build
 
-### Building the Docker image
-
 Although Smudge is intended to be directly extended, a Dockerfile is provided for testing and proofs-of-function.
 
-The Dockerfile uses a multi-stage build, so Docker 17.05 or higher is required. The build compiles the code in a dedicated Golang container and drops the resulting binary into a 'scratch' image for execution. This makes a `Makefile` or `build.sh` largely superfluous and removed the need to configure a local environment.
+The Dockerfile uses a multi-stage build, so Docker 17.05 or higher is required. The build compiles the code in a dedicated Golang container and drops the resulting binary into a `scratch` image for execution. This makes a `Makefile` or `build.sh` largely superfluous and removed the need to configure a local environment.
+
+### Running the tests
+
+To run the tests in a containerized environment, which requires only that you have Docker installed (not Go), you can do:
+
+```bash
+make test
+```
+
+Or, if you'd rather not use a Makefile:
+
+```bash
+go test -v github.com/clockworksoul/smudge
+```
+
+
+### Building the Docker image
 
 To execute the build, you simply need to do the following:
 
+```bash
+make image
 ```
+
+Or, if you'd rather not use a Makefile:
+
+```bash
 docker build -t clockworksoul/smudge:latest .
 ```
+
 
 ### Testing the Docker image
 
@@ -80,7 +102,7 @@ If you already have a `$GOPATH` set up, you can skip to the following section.
 
 First, you'll need to decide where your Go code and binaries will live. This will be your Gopath. You simply need to export this as `GOPATH`:
 
-```
+```bash
 export GOPATH=~/go/
 ```
 
@@ -90,14 +112,23 @@ Change it to whatever works for you. You'll want to add this to your `.bashrc` o
 
 Clone the code into `$GOPATH/src/github.com/clockworksoul/smudge`. Using the full-qualified path structure makes it possible to import the code into other libraries, as well as Smudge's own `main()` function.
 
-```
+```bash
 git clone git@github.com:clockworksoul/smudge.git $GOPATH/src/github.com/clockworksoul/smudge
 ```
 
 #### Execute your build
 
 Once you have a `$GOPATH` already configured and the repository correctly cloned into `$GOPATH/src/github.com/clockworksoul/smudge`, you can execute the following:
+
+```bash
+make build
 ```
+
+When using the Makefile, the compiled binary will be present in the `/bin` directory in the code directory.
+
+If you'd rather not use a Makefile:
+
+```bash
 go build -a -installsuffix cgo -o smudge github.com/clockworksoul/smudge/smudge
 ```
 
