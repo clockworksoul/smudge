@@ -80,7 +80,7 @@ func Begin() {
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
-	updateNodeStatus(thisHost, StatusAlive, 0)
+	updateNodeStatus(thisHost, StatusAlive, 0, thisHost)
 	AddNode(thisHost)
 
 	// Add initial hosts as specified by the SMUDGE_INITIAL_HOSTS property
@@ -140,7 +140,7 @@ func Begin() {
 
 			currentHeartbeat++
 
-			logfDebug("%d - hosts=%d (announce=%d forward=%d)\n",
+			logfTrace("%d - hosts=%d (announce=%d forward=%d)\n",
 				currentHeartbeat,
 				len(randomAllNodes),
 				emitCount(),
@@ -194,7 +194,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 	if len(filteredNodes) == 0 {
 		logDebug(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
-		updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
+		updateNodeStatus(pack.node, StatusDead, currentHeartbeat, thisHost)
 	} else {
 		for i, n := range filteredNodes {
 			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
@@ -407,6 +407,10 @@ func startTimeoutCheckLoop() {
 			elapsed := pack.elapsed()
 			timeoutMillis := uint32(pingdata.nSigma(timeoutToleranceSigmas))
 
+			if timeoutMillis < 100 {
+				timeoutMillis = 100
+			}
+
 			// Ping requests are expected to take quite a bit longer.
 			// Just call it 2x for now.
 			if pack.packType == packPingReq {
@@ -423,15 +427,31 @@ func startTimeoutCheckLoop() {
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped PINGREQ)")
 
 					if knownNodes.contains(pack.callback) {
-						updateNodeStatus(pack.callback, StatusDead, currentHeartbeat)
-						pack.callback.pingMillis = PingTimedOut
+						switch pack.callback.Status() {
+						case StatusDead:
+							break
+						case StatusSuspected:
+							updateNodeStatus(pack.callback, StatusDead, currentHeartbeat, thisHost)
+							pack.callback.pingMillis = PingTimedOut
+						default:
+							updateNodeStatus(pack.callback, StatusSuspected, currentHeartbeat, thisHost)
+							pack.callback.pingMillis = PingTimedOut
+						}
 					}
 				case packNFP:
 					logDebug(k, "timed out after", timeoutMillis, "milliseconds (dropped NFP)")
 
 					if knownNodes.contains(pack.node) {
-						updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
-						pack.callback.pingMillis = PingTimedOut
+						switch pack.node.Status() {
+						case StatusDead:
+							break
+						case StatusSuspected:
+							updateNodeStatus(pack.node, StatusDead, currentHeartbeat, thisHost)
+							pack.callback.pingMillis = PingTimedOut
+						default:
+							updateNodeStatus(pack.node, StatusSuspected, currentHeartbeat, thisHost)
+							pack.callback.pingMillis = PingTimedOut
+						}
 					}
 				}
 
@@ -457,7 +477,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 	msg := newMessage(verb, thisHost, code)
 
 	if forwardTo != nil {
-		msg.addMember(forwardTo, StatusForwardTo, code)
+		msg.addMember(forwardTo, StatusForwardTo, code, forwardTo.statusSource)
 	}
 
 	// Add members for update.
@@ -469,7 +489,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 	}
 
 	for _, n := range nodes {
-		err = msg.addMember(n, n.status, n.heartbeat)
+		err = msg.addMember(n, n.status, n.heartbeat, n.statusSource)
 		if err != nil {
 			return err
 		}
@@ -557,18 +577,18 @@ func updateStatusesFromMessage(msg message) {
 		case StatusDead:
 			// Don't tell ME I'm dead.
 			if m.node.Address() != thisHost.Address() {
-				updateNodeStatus(m.node, m.status, m.heartbeat)
+				updateNodeStatus(m.node, m.status, m.heartbeat, m.source)
 				AddNode(m.node)
 			}
 		default:
-			updateNodeStatus(m.node, m.status, m.heartbeat)
+			updateNodeStatus(m.node, m.status, m.heartbeat, m.source)
 			AddNode(m.node)
 		}
 	}
 
 	// Obviously, we know the sender is alive. Report it as such.
 	if msg.senderHeartbeat > msg.sender.heartbeat {
-		updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat)
+		updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat, thisHost)
 	}
 
 	// First, if we don't know the sender, we add it.
