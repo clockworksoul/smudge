@@ -177,7 +177,7 @@ func TestEncodeDecode1Member(t *testing.T) {
 		sender:          &sender,
 		senderHeartbeat: 255,
 		verb:            verbPing}
-	message.addMember(&member, StatusDead, 38)
+	message.addMember(&member, StatusDead, 38, &member)
 
 	if len(message.members) != 1 {
 		t.Error("No member in the input members list!")
@@ -185,15 +185,16 @@ func TestEncodeDecode1Member(t *testing.T) {
 
 	ip := net.IP([]byte{127, 0, 0, 1})
 	bytes := message.encode()
-	if len(bytes) != 22 {
+	if len(bytes) != 28 {
 		t.Error("Encoded message length is invalid.")
-		t.Log("Should be 22 but found: ", len(bytes))
+		t.Log("Should be 28 but found: ", len(bytes))
 	}
 
 	decoded, err := decodeMessage(ip, bytes)
 	t.Log("bytes: ", bytes)
 	decoded.sender.timestamp = timestamp
 	decoded.members[0].node.timestamp = timestamp
+	decoded.members[0].source.timestamp = timestamp
 
 	if err != nil {
 		t.Error(err)
@@ -208,8 +209,12 @@ func TestEncodeDecode1Member(t *testing.T) {
 
 		t.Log(" Input:", message.members[0])
 		t.Log("Output:", decoded.members[0])
+
 		t.Log(" Input node:", message.members[0].node)
 		t.Log("Output node:", decoded.members[0].node)
+
+		t.Log(" Input source:", message.members[0].source)
+		t.Log("Output source:", decoded.members[0].source)
 	}
 }
 
@@ -236,7 +241,7 @@ func TestEncodeDecode1MemberIPv6(t *testing.T) {
 		sender:          &sender,
 		senderHeartbeat: 255,
 		verb:            verbPing}
-	message.addMember(&member, StatusDead, 38)
+	message.addMember(&member, StatusDead, 38, &member)
 
 	if len(message.members) != 1 {
 		t.Error("No member in the input members list!")
@@ -245,14 +250,15 @@ func TestEncodeDecode1MemberIPv6(t *testing.T) {
 	ipLen = net.IPv6len // encode for IPv6
 	ip := net.IP{255, 254, 253, 252, 251, 250, 240, 230, 220, 210, 200, 10, 20, 30, 40, 50}
 	bytes := message.encode()
-	if len(bytes) != 34 {
+	if len(bytes) != 52 {
 		t.Error("Encoded message length is invalid.")
-		t.Log("Should be 34 but found: ", len(bytes))
+		t.Log("Should be 52 but found: ", len(bytes))
 	}
 
 	decoded, err := decodeMessage(ip, bytes)
 	decoded.sender.timestamp = timestamp
 	decoded.members[0].node.timestamp = timestamp
+	decoded.members[0].source.timestamp = timestamp
 
 	if err != nil {
 		t.Error(err)
@@ -269,6 +275,8 @@ func TestEncodeDecode1MemberIPv6(t *testing.T) {
 		t.Log("Output:", decoded.members[0])
 		t.Log(" Input node:", message.members[0].node)
 		t.Log("Output node:", decoded.members[0].node)
+		t.Log(" Input source:", message.members[0].source)
+		t.Log("Output source:", decoded.members[0].source)
 	}
 
 	ipLen = net.IPv4len // reset to IPv4 for next test
@@ -295,7 +303,7 @@ func TestEncodeDecode1MemberBroadcast(t *testing.T) {
 		sender:          &sender,
 		senderHeartbeat: 255,
 		verb:            verbPing}
-	message.addMember(&member, StatusDead, 38)
+	message.addMember(&member, StatusDead, 38, &member)
 
 	broadcast := Broadcast{
 		bytes:  []byte("This is a message"), //len=17
@@ -309,14 +317,15 @@ func TestEncodeDecode1MemberBroadcast(t *testing.T) {
 
 	ip := net.IP([]byte{127, 0, 0, 1})
 	bytes := message.encode()
-	if len(bytes) != 51 {
+	if len(bytes) != 57 {
 		t.Error("Encoded message length is invalid.")
-		t.Log("Should be 51 but found: ", len(bytes))
+		t.Log("Should be 57 but found: ", len(bytes))
 	}
 
 	decoded, err := decodeMessage(ip, bytes)
 	decoded.sender.timestamp = timestamp
 	decoded.members[0].node.timestamp = timestamp
+	decoded.members[0].source.timestamp = timestamp
 
 	if err != nil {
 		t.Error(err)
@@ -357,7 +366,7 @@ func TestEncodeDecode1MemberBroadcastIPv6(t *testing.T) {
 		sender:          &sender,
 		senderHeartbeat: 255,
 		verb:            verbPing}
-	message.addMember(&member, StatusDead, 38)
+	message.addMember(&member, StatusDead, 38, &member)
 
 	broadcast := Broadcast{
 		bytes:  []byte("This is a message"),
@@ -372,14 +381,15 @@ func TestEncodeDecode1MemberBroadcastIPv6(t *testing.T) {
 	ipLen = net.IPv6len // encode for IPv6
 	ip := net.IP{255, 254, 253, 252, 251, 250, 240, 230, 220, 210, 200, 10, 20, 30, 40, 50}
 	bytes := message.encode()
-	if len(bytes) != 75 {
+	if len(bytes) != 93 {
 		t.Error("Encoded message length is invalid.")
-		t.Log("Should be 75 but found: ", len(bytes))
+		t.Log("Should be 93 but found: ", len(bytes))
 	}
 
 	decoded, err := decodeMessage(ip, bytes)
 	decoded.sender.timestamp = timestamp
 	decoded.members[0].node.timestamp = timestamp
+	decoded.members[0].source.timestamp = timestamp
 
 	if err != nil {
 		t.Error(err)

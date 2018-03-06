@@ -32,16 +32,17 @@ const (
 	PingTimedOut int = -2
 )
 
-// Node represents a single node in the cluster.
+// Node represents a single node in the cluster and its status
 type Node struct {
-	ip          net.IP
-	port        uint16
-	timestamp   uint32
-	address     string
-	pingMillis  int
-	status      NodeStatus
-	emitCounter int8
-	heartbeat   uint32
+	ip           net.IP
+	port         uint16
+	timestamp    uint32
+	address      string
+	pingMillis   int
+	status       NodeStatus
+	emitCounter  int8
+	heartbeat    uint32
+	statusSource *Node
 }
 
 // Address rReturns the address for this node in string format, which is simply
@@ -87,6 +88,12 @@ func (n *Node) Port() uint16 {
 // Status returns this node's current status.
 func (n *Node) Status() NodeStatus {
 	return n.status
+}
+
+// StatusSource returns a pointer to the node that originally stated this
+// node's Status; the source of the gossip.
+func (n *Node) StatusSource() *Node {
+	return n.statusSource
 }
 
 // Timestamp returns the timestamp of this node's last ping or status update,

@@ -57,7 +57,7 @@ func AddNode(node *Node) (*Node, error) {
 				"does not have a status! Setting to",
 				StatusAlive)
 
-			UpdateNodeStatus(node, StatusAlive)
+			UpdateNodeStatus(node, StatusAlive, thisHost)
 		} else if node.status == StatusForwardTo {
 			panic("invalid status: " + StatusForwardTo.String())
 		}
@@ -181,8 +181,8 @@ func RemoveNode(node *Node) (*Node, error) {
 // UpdateNodeStatus assigns a new status for the specified node and adds it to
 // the list of recently updated nodes. If the status is StatusDead, then the
 // node will be moved from the live nodes list to the dead nodes list.
-func UpdateNodeStatus(node *Node, status NodeStatus) {
-	updateNodeStatus(node, status, node.heartbeat)
+func UpdateNodeStatus(node *Node, status NodeStatus, statusSource *Node) {
+	updateNodeStatus(node, status, node.heartbeat, statusSource)
 }
 
 /******************************************************************************
@@ -279,7 +279,7 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 // UpdateNodeStatus assigns a new status for the specified node and adds it to
 // the list of recently updated nodes. If the status is StatusDead, then the
 // node will be moved from the live nodes list to the dead nodes list.
-func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32) {
+func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32, statusSource *Node) {
 	if node.status != status {
 		if heartbeat < node.heartbeat {
 			logfWarn("Decreasing known node heartbeat value from %d to %d\n",
@@ -289,6 +289,7 @@ func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32) {
 
 		node.timestamp = GetNowInMillis()
 		node.status = status
+		node.statusSource = statusSource
 		node.emitCounter = int8(emitCount())
 		node.heartbeat = heartbeat
 

@@ -80,7 +80,7 @@ func Begin() {
 
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
-	updateNodeStatus(thisHost, StatusAlive, 0)
+	updateNodeStatus(thisHost, StatusAlive, 0, thisHost)
 	AddNode(thisHost)
 
 	// Add initial hosts as specified by the SMUDGE_INITIAL_HOSTS property
@@ -194,7 +194,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 	if len(filteredNodes) == 0 {
 		logDebug(thisHost.Address(), "Cannot forward ping request: no more nodes")
 
-		updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
+		updateNodeStatus(pack.node, StatusDead, currentHeartbeat, thisHost)
 	} else {
 		for i, n := range filteredNodes {
 			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
@@ -431,10 +431,10 @@ func startTimeoutCheckLoop() {
 						case StatusDead:
 							break
 						case StatusSuspected:
-							updateNodeStatus(pack.callback, StatusDead, currentHeartbeat)
+							updateNodeStatus(pack.callback, StatusDead, currentHeartbeat, thisHost)
 							pack.callback.pingMillis = PingTimedOut
 						default:
-							updateNodeStatus(pack.callback, StatusSuspected, currentHeartbeat)
+							updateNodeStatus(pack.callback, StatusSuspected, currentHeartbeat, thisHost)
 							pack.callback.pingMillis = PingTimedOut
 						}
 					}
@@ -446,10 +446,10 @@ func startTimeoutCheckLoop() {
 						case StatusDead:
 							break
 						case StatusSuspected:
-							updateNodeStatus(pack.node, StatusDead, currentHeartbeat)
+							updateNodeStatus(pack.node, StatusDead, currentHeartbeat, thisHost)
 							pack.callback.pingMillis = PingTimedOut
 						default:
-							updateNodeStatus(pack.node, StatusSuspected, currentHeartbeat)
+							updateNodeStatus(pack.node, StatusSuspected, currentHeartbeat, thisHost)
 							pack.callback.pingMillis = PingTimedOut
 						}
 					}
@@ -477,7 +477,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 	msg := newMessage(verb, thisHost, code)
 
 	if forwardTo != nil {
-		msg.addMember(forwardTo, StatusForwardTo, code)
+		msg.addMember(forwardTo, StatusForwardTo, code, forwardTo.statusSource)
 	}
 
 	// Add members for update.
@@ -489,7 +489,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 	}
 
 	for _, n := range nodes {
-		err = msg.addMember(n, n.status, n.heartbeat)
+		err = msg.addMember(n, n.status, n.heartbeat, n.statusSource)
 		if err != nil {
 			return err
 		}
@@ -577,18 +577,18 @@ func updateStatusesFromMessage(msg message) {
 		case StatusDead:
 			// Don't tell ME I'm dead.
 			if m.node.Address() != thisHost.Address() {
-				updateNodeStatus(m.node, m.status, m.heartbeat)
+				updateNodeStatus(m.node, m.status, m.heartbeat, m.source)
 				AddNode(m.node)
 			}
 		default:
-			updateNodeStatus(m.node, m.status, m.heartbeat)
+			updateNodeStatus(m.node, m.status, m.heartbeat, m.source)
 			AddNode(m.node)
 		}
 	}
 
 	// Obviously, we know the sender is alive. Report it as such.
 	if msg.senderHeartbeat > msg.sender.heartbeat {
-		updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat)
+		updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat, thisHost)
 	}
 
 	// First, if we don't know the sender, we add it.

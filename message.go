@@ -51,9 +51,17 @@ type message struct {
 // Represents a "member" of a message; i.e., a node that the sender knows
 // about, about which it wishes to notify the downstream recipient.
 type messageMember struct {
+	// The source of the gossip about the member.
+	source *Node
+
+	// The last known heartbeat of node.
 	heartbeat uint32
-	node      *Node
-	status    NodeStatus
+
+	// The subject of the gossip.
+	node *Node
+
+	// The status that the gossip is conveying.
+	status NodeStatus
 }
 
 // Convenience function. Creates a new message instance.
@@ -75,7 +83,7 @@ func (m *message) addBroadcast(broadcast *Broadcast) {
 // members is 2^6 - 1 = 63, though it is incredibly unlikely that this maximum
 // will be reached without an absurdly high lambda. There aren't yet many
 // 88 billion node clusters (assuming lambda of 2.5).
-func (m *message) addMember(n *Node, status NodeStatus, heartbeat uint32) error {
+func (m *message) addMember(node *Node, status NodeStatus, heartbeat uint32, gossipSource *Node) error {
 	if m.members == nil {
 		m.members = make([]*messageMember, 0, 32)
 	} else if len(m.members) >= 63 {
@@ -84,8 +92,10 @@ func (m *message) addMember(n *Node, status NodeStatus, heartbeat uint32) error 
 
 	messageMember := messageMember{
 		heartbeat: heartbeat,
-		node:      n,
-		status:    status}
+		node:      node,
+		status:    status,
+		source:    gossipSource,
+	}
 
 	m.members = append(m.members, &messageMember)
 
@@ -98,14 +108,20 @@ func (m *message) addMember(n *Node, status NodeStatus, heartbeat uint32) error 
 // Bytes 04    Verb (one of {PING|ACK|PINGREQ|NFPING})
 // Bytes 05-06 Sender response port
 // Bytes 07-10 Sender ID Code
-// ---[ Per member (23 bytes, 11 bytes for IPv4)]---
+// ---[ Per member (23 bytes, 17 bytes for IPv4)]---
 // Bytes 00    Member status byte
 // Bytes 01-16 Member host IP (01-04 for IPv4)
 // Bytes 17-18 Member host response port (05-06 for IPv4)
-// Bytes 19-22 Sender current heartbeat (07-10 for IPv4)
+// Bytes 19-22 Member heartbeat (07-10 for IPv4)
+// Bytes 23-38 Gossip source IP (11-14 fit IPv4)
+// Bytes 39-40 Gossip source response port (15-16 for IPv4)
 
 func (m *message) encode() []byte {
-	size := 11 + (len(m.members) * (7 + ipLen))
+	// Pre-calculate the message size. Each message prefix is 11 bytes.
+	// Each member has a constant size of 9 bytes, plus 2 times the length of
+	// the IP (4 for IPv4, 16 for IPv6).
+	size := 11 + (len(m.members) * (9 + ipLen + ipLen))
+
 	if m.broadcast != nil {
 		size += 8 + ipLen + len(m.broadcast.bytes)
 	}
@@ -133,6 +149,7 @@ func (m *message) encode() []byte {
 		mnode := member.node
 		mstatus := member.status
 		mcode := member.heartbeat
+		snode := member.source
 
 		// Byte p + 00
 		bytes[p] = byte(mstatus)
@@ -140,7 +157,7 @@ func (m *message) encode() []byte {
 
 		var ipb net.IP
 
-		// Originating host IP
+		// Member host IP
 		// IPv4: Bytes (p + 01) to (p + 04)
 		// IPv6: Bytes (p + 01) to (p + 16)
 		if ipLen == net.IPv4len {
@@ -154,15 +171,39 @@ func (m *message) encode() []byte {
 		}
 		p += ipLen
 
-		// Originating host response port
+		// Member host response port
 		// IPv4: Bytes (p + 05) to (p + 06)
 		// IPv6: Bytes (p + 17) to (p + 18)
 		p += encodeUint16(mnode.port, bytes, p)
 
-		// Originating message code
-		// IPv4: Bytes (p + 07) to (p + 08)
+		// Member heartbeat
+		// IPv4: Bytes (p + 07) to (p + 10)
 		// IPv6: Bytes (p + 19) to (p + 22)
 		p += encodeUint32(mcode, bytes, p)
+
+		if snode != nil {
+			// Gossip source host IP
+			// IPv4: Bytes (p + 11) to (p + 14)
+			// IPv6: Bytes (p + 23) to (p + 39)
+			if ipLen == net.IPv4len {
+				ipb = snode.ip.To4()
+			} else if ipLen == net.IPv6len {
+				ipb = snode.ip.To16()
+			}
+
+			for i := 0; i < ipLen; i++ {
+				bytes[p+i] = ipb[i]
+			}
+
+			p += ipLen
+
+			// Gossip source host response port
+			// IPv4: Bytes (p + 15) to (p + 16)
+			// IPv6: Bytes (p + 40) to (p + 41)
+			p += encodeUint16(snode.port, bytes, p)
+		} else {
+			p += ipLen + 2
+		}
 	}
 
 	if m.broadcast != nil {
@@ -231,7 +272,8 @@ func decodeMessage(sourceIP net.IP, bytes []byte) (message, error) {
 	// Now that we have the verb, node, and code, we can build the mesage
 	m := newMessage(verb, sender, senderHeartbeat)
 
-	memberLastIndex := p + (memberCount * (7 + ipLen))
+	memberLastIndex := p + (memberCount * (9 + ipLen + ipLen))
+
 	if len(bytes) > p {
 		m.members = decodeMembers(memberCount, bytes[p:memberLastIndex])
 	}
@@ -260,6 +302,9 @@ func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 		var mport uint16
 		var mcode uint32
 		var mnode *Node
+		var sip net.IP
+		var sport uint16
+		var snode *Node
 
 		// Byte 00 Member status byte
 		mstatus = NodeStatus(bytes[p])
@@ -291,9 +336,33 @@ func decodeMembers(memberCount int, bytes []byte) []*messageMember {
 			}
 		}
 
+		if ipLen == net.IPv6len {
+			// Bytes 01-16 member IP
+			sip = make(net.IP, net.IPv6len)
+			copy(sip, bytes[p:p+16])
+		} else {
+			// Bytes 01-04 member IPv4
+			sip = net.IPv4(bytes[p+0], bytes[p+1], bytes[p+2], bytes[p+3])
+		}
+		p += ipLen
+
+		// Bytes 17-18 member response port
+		sport, p = decodeUint16(bytes, p)
+
+		if len(sip) > 0 {
+			// Find the sender by the address associated with the message
+			snode = knownNodes.getByIP(sip, sport)
+
+			// We still don't know this node, so create a new one!
+			if snode == nil {
+				snode, _ = CreateNodeByIP(sip, sport)
+			}
+		}
+
 		member := messageMember{
 			heartbeat: mcode,
 			node:      mnode,
+			source:    snode,
 			status:    mstatus,
 		}
 
