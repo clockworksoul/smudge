@@ -17,6 +17,7 @@ limitations under the License.
 package smudge
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"regexp"
@@ -69,6 +70,23 @@ const (
 	// of 508 bytes, which must also contain status updates and additional
 	// message overhead.
 	DefaultMaxBroadcastBytes int = 256
+
+	// EnvVarMulticastEnabled is the name of the environment variable that
+	// describes whether Smudge will attempt to announce its presence via
+	// multicast on startup.
+	EnvVarMulticastEnabled = "SMUDGE_MULTICAST_ENABLED"
+
+	// DefaultMulticastEnabled is the default value for whether Smudge will
+	// attempt to announce its presence via multicast on startup.
+	DefaultMulticastEnabled string = "true"
+
+	// EnvVarMulticastAddress is the name of the environment variable that
+	// defines the multicast address that will be used.
+	EnvVarMulticastAddress = "SMUDGE_MULTICAST_ADDRESS"
+
+	// DefaultMulticastAddress is the default multicast address. Empty string
+	// indicates 224.0.0.0 for IPv4 and [ff02::1] for IPv6.
+	DefaultMulticastAddress string = ""
 )
 
 var heartbeatMillis int
@@ -80,6 +98,12 @@ var listenIP net.IP
 var initialHosts []string
 
 var maxBroadcastBytes int
+
+var multicastEnabledString string
+
+var multicastEnabled bool
+
+var multicastAddress string
 
 const stringListDelimitRegex = "\\s*((,\\s*)|(\\s+))"
 
@@ -128,6 +152,26 @@ func GetMaxBroadcastBytes() int {
 	return maxBroadcastBytes
 }
 
+// GetMulticastEnabled returns whether multicast announcements are enabled.
+func GetMulticastEnabled() bool {
+	if multicastEnabledString == "" {
+		multicastEnabledString = strings.ToLower(getStringVar(EnvVarMulticastEnabled, DefaultMulticastEnabled))
+		multicastEnabled = len(multicastEnabledString) > 0 && multicastEnabledString[0] == "t"
+	}
+
+	return multicastEnabled
+}
+
+// GetMulticastAddress returns the address the will be used for multicast
+// announcements.
+func GetMulticastAddress() bool {
+	if multicastAddress == "" {
+		multicastAddress = getStringVar(EnvVarMulticastAddress, DefaultMulticastAddress)
+	}
+
+	return multicastAddress
+}
+
 // SetHeartbeatMillis sets this nodes heartbeat frequency. Unlike
 // SetListenPort(), calling this function after Begin() has been called will
 // have an effect.
@@ -173,6 +217,21 @@ func SetMaxBroadcastBytes(val int) {
 		maxBroadcastBytes = DefaultMaxBroadcastBytes
 	} else {
 		maxBroadcastBytes = val
+	}
+}
+
+// GetMulticastEnabled sets whether multicast announcements are enabled.
+func SetMulticastEnabled(val bool) {
+	multicastEnabledString = fmt.Sprintf("%v", val)
+}
+
+// SetMulticastAddress sets the address that will be used for multicast
+// announcements.
+func SetMulticastAddress(val string) {
+	if val == "" {
+		multicastAddress = DefaultMulticastAddress
+	} else {
+		multicastAddress = val
 	}
 }
 

@@ -31,6 +31,10 @@ const lambda = 2.5
 // allow before timing out an ACK.
 const timeoutToleranceSigmas = 3.0
 
+const defaultIPv4MulticastAddress = "224.0.0.0"
+
+const defaultIPv6MulticastAddress = "[ff02::1]"
+
 var currentHeartbeat uint32
 
 var pendingAcks = struct {
@@ -76,12 +80,12 @@ func Begin() {
 
 	logInfo("My host address:", thisHostAddress)
 
-	go listenUDP(GetListenPort())
-
 	// Add this node's status. Don't update any other node's statuses: they'll
 	// report those back to us.
 	updateNodeStatus(thisHost, StatusAlive, 0, thisHost)
 	AddNode(thisHost)
+
+	go listenUDP(GetListenPort())
 
 	// Add initial hosts as specified by the SMUDGE_INITIAL_HOSTS property
 	for _, address := range GetInitialHosts() {
@@ -91,6 +95,11 @@ func Begin() {
 		} else {
 			AddNode(n)
 		}
+	}
+
+	if multicastEnabled {
+		go listenUDPMulticast(GetListenPort() - 1)
+		go multicastAnnounce(getMulticastAddress())
 	}
 
 	go startTimeoutCheckLoop()
@@ -179,15 +188,6 @@ func PingNode(node *Node) error {
  * Private functions (for internal use only)
  *****************************************************************************/
 
-// The number of times any node's new status should be emitted after changes.
-// Currently set to (lambda * log(node count)).
-func emitCount() int {
-	logn := math.Log(float64(knownNodes.length()))
-	mult := (lambda * logn) + 0.5
-
-	return int(mult)
-}
-
 func doForwardOnTimeout(pack *pendingAck) {
 	filteredNodes := getTargetNodes(pingRequestCount(), thisHost, pack.node)
 
@@ -206,6 +206,31 @@ func doForwardOnTimeout(pack *pendingAck) {
 			transmitVerbForwardUDP(n, pack.node, currentHeartbeat)
 		}
 	}
+}
+
+// The number of times any node's new status should be emitted after changes.
+// Currently set to (lambda * log(node count)).
+func emitCount() int {
+	logn := math.Log(float64(knownNodes.length()))
+	mult := (lambda * logn) + 0.5
+
+	return int(mult)
+}
+
+func getMulticastAddress() string {
+	if ipLen == net.IPv4len {
+		if multicastAddress == "" {
+			if ipLen == net.IPv6len {
+				multicastAddress = defaultIPv6MulticastAddress
+			} else if ipLen == net.IPv4len {
+				multicastAddress = defaultIPv4MulticastAddress
+			} else {
+				logFatal("Failed to determine IPv4/IPv6")
+			}
+		}
+	}
+
+	return multicastAddress
 }
 
 // Returns a random slice of valid ping/forward request targets; i.e., not
@@ -256,6 +281,67 @@ func listenUDP(port int) error {
 			}
 		}(addr, buf[0:n])
 	}
+}
+
+func listenUDPMulticast(port int) error {
+	listenAddress, err := net.ResolveUDPAddr("udp", getMulticastAddress()+":"+strconv.FormatInt(int64(port), 10))
+	if err != nil {
+		return err
+	}
+
+	/* Now listen at selected port */
+	c, err := net.ListenMulticastUDP("udp", nil, listenAddress)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	for {
+		buf := make([]byte, 2048) // big enough to fit 1280 IPv6 UDP message
+		n, addr, err := c.ReadFromUDP(buf)
+		if err != nil {
+			logError("UDP read error:", err)
+		}
+
+		go func(addr *net.UDPAddr, msg []byte) {
+			err = receiveMessageUDP(addr, buf[0:n])
+			if err != nil {
+				logError(err)
+			}
+		}(addr, buf[0:n])
+	}
+}
+
+// multicastAnnounce is called when the server first starts to broadcast its
+// presence to all listening servers within the specified subnet.
+func multicastAnnounce(addr string) error {
+	fullAddr := addr + ":" + strconv.FormatInt(int64(listenPort-1), 10)
+
+	logInfo("Announcing presence on", fullAddr)
+
+	address, err := net.ResolveUDPAddr("udp", fullAddr)
+	if err != nil {
+		logError(err)
+		return err
+	}
+
+	msg := newMessage(verbPing, thisHost, currentHeartbeat)
+
+	c, err := net.DialUDP("udp", nil, address)
+	if err != nil {
+		logError(err)
+		return err
+	}
+
+	_, err = c.Write(msg.encode())
+	if err != nil {
+		logError(err)
+		return err
+	}
+
+	logfTrace("Sent announcement multicast to %v\n", verbPing, getMulticastAddress())
+
+	return nil
 }
 
 // The number of nodes to send a PINGREQ to when a PING times out.
