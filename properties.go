@@ -101,7 +101,7 @@ var maxBroadcastBytes int
 
 var multicastEnabledString string
 
-var multicastEnabled bool
+var multicastEnabled bool = true
 
 var multicastAddress string
 
@@ -156,7 +156,7 @@ func GetMaxBroadcastBytes() int {
 func GetMulticastEnabled() bool {
 	if multicastEnabledString == "" {
 		multicastEnabledString = strings.ToLower(getStringVar(EnvVarMulticastEnabled, DefaultMulticastEnabled))
-		multicastEnabled = len(multicastEnabledString) > 0 && multicastEnabledString[0] == "t"
+		multicastEnabled = len(multicastEnabledString) > 0 && []rune(multicastEnabledString)[0] == 't'
 	}
 
 	return multicastEnabled
@@ -164,7 +164,7 @@ func GetMulticastEnabled() bool {
 
 // GetMulticastAddress returns the address the will be used for multicast
 // announcements.
-func GetMulticastAddress() bool {
+func GetMulticastAddress() string {
 	if multicastAddress == "" {
 		multicastAddress = getStringVar(EnvVarMulticastAddress, DefaultMulticastAddress)
 	}
