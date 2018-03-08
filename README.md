@@ -11,7 +11,7 @@ Smudge is a minimalist Go implementation of the [SWIM](https://pdfs.semanticscho
 
 Smudge also extends the standard SWIM protocol so that in addition to the standard membership status functionality it also allows the transmission of broadcasts containing a small amount (256 bytes) of arbitrary content to all present healthy members. This maximum is related to the limit imposed on maximum safe UDP packet size by RFC 791 and RFC 2460. We recognize that some systems allow larger packets, however, and although that can risk fragmentation and dropped packets the maximum payload size is configurable.
 
-Smudge was conceived with space-sensitive systems (mobile, IOT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set is relatively small and mostly limited to functionality around adding and removing nodes and detecting status changes on the cluster.
+Smudge was conceived with space-sensitive systems (mobile, IoT, containers) in mind, and therefore was developed with a minimalist philosophy of doing a few things well. As such, its feature set is relatively small and mostly limited to functionality around adding and removing nodes and detecting status changes on the cluster.
 
 Complete documentation is available from [the associated Godoc](https://godoc.org/github.com/clockworksoul/smudge).
 
