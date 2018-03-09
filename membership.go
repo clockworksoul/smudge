@@ -218,15 +218,13 @@ func emitCount() int {
 }
 
 func getMulticastAddress() string {
-	if ipLen == net.IPv4len {
-		if multicastAddress == "" {
-			if ipLen == net.IPv6len {
-				multicastAddress = defaultIPv6MulticastAddress
-			} else if ipLen == net.IPv4len {
-				multicastAddress = defaultIPv4MulticastAddress
-			} else {
-				logFatal("Failed to determine IPv4/IPv6")
-			}
+	if multicastAddress == "" {
+		if ipLen == net.IPv6len {
+			multicastAddress = defaultIPv6MulticastAddress
+		} else if ipLen == net.IPv4len {
+			multicastAddress = defaultIPv4MulticastAddress
+		} else {
+			logFatal("Failed to determine IPv4/IPv6")
 		}
 	}
 

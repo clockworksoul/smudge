@@ -28,7 +28,6 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 ## Known issues
 * Broadcasts are limited to 256 bytes, or 512 bytes when using IPv6.
 * No WAN support: only local-network, private IPs are supported.
-* No multicast discovery.
 
 ### Deviations from [Motivala, et al](https://pdfs.semanticscholar.org/8712/3307869ac84fc16122043a4a313604bd948f.pdf)
 
