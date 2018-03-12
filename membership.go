@@ -98,8 +98,8 @@ func Begin() {
 	}
 
 	if multicastEnabled {
-		go listenUDPMulticast(GetListenPort() - 1)
-		go multicastAnnounce(getMulticastAddress())
+		go listenUDPMulticast(GetMulticastPort())
+		go multicastAnnounce(GetMulticastAddress())
 	}
 
 	go startTimeoutCheckLoop()
@@ -188,6 +188,19 @@ func PingNode(node *Node) error {
  * Private functions (for internal use only)
  *****************************************************************************/
 
+// Multicast announcements are constructed as:
+// Byte  0      - 1 byte character byte length N
+// Bytes 1 to N - Cluster name bytes
+// Bytes N+1... - A message (without members)
+func decodeMulticastAnnounceBytes(bytes []byte) (string, []byte) {
+	nameBytesLen := int(bytes[0])
+	nameBytes := bytes[1 : nameBytesLen+1]
+	name := string(nameBytes)
+	msgBytes := bytes[nameBytesLen+1 : len(bytes)]
+
+	return name, msgBytes
+}
+
 func doForwardOnTimeout(pack *pendingAck) {
 	filteredNodes := getTargetNodes(pingRequestCount(), thisHost, pack.node)
 
@@ -217,7 +230,41 @@ func emitCount() int {
 	return int(mult)
 }
 
-func getMulticastAddress() string {
+// Multicast announcements are constructed as:
+// Byte  0      - 1 byte character byte length N
+// Bytes 1 to N - Cluster name bytes
+// Bytes N+1... - A message (without members)
+func encodeMulticastAnnounceBytes() []byte {
+	nameBytes := []byte(GetClusterName())
+	nameBytesLen := len(nameBytes)
+
+	if nameBytesLen > 0xFF {
+		panic("Cluster name too long: " +
+			strconv.FormatInt(int64(nameBytesLen), 10) +
+			" bytes (max 254)")
+	}
+
+	msg := newMessage(verbPing, thisHost, currentHeartbeat)
+	msgBytes := msg.encode()
+	msgBytesLen := len(msgBytes)
+
+	totalByteCount := 1 + nameBytesLen + msgBytesLen
+
+	bytes := make([]byte, totalByteCount, totalByteCount)
+
+	// Add name length byte
+	bytes[0] = byte(nameBytesLen)
+
+	// Copy the name bytes
+	copy(bytes[1:nameBytesLen+1], nameBytes)
+
+	// Copy the message proper
+	copy(bytes[nameBytesLen+1:totalByteCount], msgBytes)
+
+	return bytes
+}
+
+func guessMulticastAddress() string {
 	if multicastAddress == "" {
 		if ipLen == net.IPv6len {
 			multicastAddress = defaultIPv6MulticastAddress
@@ -282,7 +329,7 @@ func listenUDP(port int) error {
 }
 
 func listenUDPMulticast(port int) error {
-	listenAddress, err := net.ResolveUDPAddr("udp", getMulticastAddress()+":"+strconv.FormatInt(int64(port), 10))
+	listenAddress, err := net.ResolveUDPAddr("udp", guessMulticastAddress()+":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
 		return err
 	}
@@ -301,10 +348,16 @@ func listenUDPMulticast(port int) error {
 			logError("UDP read error:", err)
 		}
 
-		go func(addr *net.UDPAddr, msg []byte) {
-			err = receiveMessageUDP(addr, buf[0:n])
-			if err != nil {
-				logError(err)
+		go func(addr *net.UDPAddr, bytes []byte) {
+			name, msgBytes := decodeMulticastAnnounceBytes(bytes)
+
+			if GetClusterName() == name {
+				logfInfo("Got in-cluster multicast announcement: %v\n", name)
+
+				err = receiveMessageUDP(addr, msgBytes)
+				if err != nil {
+					logError(err)
+				}
 			}
 		}(addr, buf[0:n])
 	}
@@ -313,7 +366,11 @@ func listenUDPMulticast(port int) error {
 // multicastAnnounce is called when the server first starts to broadcast its
 // presence to all listening servers within the specified subnet.
 func multicastAnnounce(addr string) error {
-	fullAddr := addr + ":" + strconv.FormatInt(int64(listenPort-1), 10)
+	if addr == "" {
+		addr = guessMulticastAddress()
+	}
+
+	fullAddr := addr + ":" + strconv.FormatInt(int64(GetMulticastPort()), 10)
 
 	logInfo("Announcing presence on", fullAddr)
 
@@ -323,21 +380,21 @@ func multicastAnnounce(addr string) error {
 		return err
 	}
 
-	msg := newMessage(verbPing, thisHost, currentHeartbeat)
-
 	c, err := net.DialUDP("udp", nil, address)
 	if err != nil {
 		logError(err)
 		return err
 	}
 
-	_, err = c.Write(msg.encode())
+	// Compose and send the multicast announcement
+	msgBytes := encodeMulticastAnnounceBytes()
+	_, err = c.Write(msgBytes)
 	if err != nil {
 		logError(err)
 		return err
 	}
 
-	logfTrace("Sent announcement multicast to %v\n", verbPing, getMulticastAddress())
+	logfTrace("Sent announcement multicast to %v\n", fullAddr)
 
 	return nil
 }

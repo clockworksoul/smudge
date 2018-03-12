@@ -81,6 +81,14 @@ const (
 	// message overhead.
 	DefaultMaxBroadcastBytes int = 256
 
+	// EnvVarMulticastAddress is the name of the environment variable that
+	// defines the multicast address that will be used.
+	EnvVarMulticastAddress = "SMUDGE_MULTICAST_ADDRESS"
+
+	// DefaultMulticastAddress is the default multicast address. Empty string
+	// indicates 224.0.0.0 for IPv4 and [ff02::1] for IPv6.
+	DefaultMulticastAddress string = ""
+
 	// EnvVarMulticastEnabled is the name of the environment variable that
 	// describes whether Smudge will attempt to announce its presence via
 	// multicast on startup.
@@ -90,13 +98,13 @@ const (
 	// attempt to announce its presence via multicast on startup.
 	DefaultMulticastEnabled string = "true"
 
-	// EnvVarMulticastAddress is the name of the environment variable that
-	// defines the multicast address that will be used.
-	EnvVarMulticastAddress = "SMUDGE_MULTICAST_ADDRESS"
+	// EnvVarMulticastPort is the name of the environment variable that
+	// defines the multicast announcement listening port.
+	EnvVarMulticastPort = "SMUDGE_MULTICAST_PORT"
 
-	// DefaultMulticastAddress is the default multicast address. Empty string
-	// indicates 224.0.0.0 for IPv4 and [ff02::1] for IPv6.
-	DefaultMulticastAddress string = ""
+	// DefaultMulticastPort is the default value for the multicast
+	// listening port.
+	DefaultMulticastPort int = 9998
 )
 
 var clusterName string
@@ -114,6 +122,8 @@ var maxBroadcastBytes int
 var multicastEnabledString string
 
 var multicastEnabled bool = true
+
+var multicastPort int
 
 var multicastAddress string
 
@@ -195,6 +205,15 @@ func GetMulticastAddress() string {
 	return multicastAddress
 }
 
+// GetMulticastPort returns the defined multicast announcement listening port.
+func GetMulticastPort() int {
+	if multicastPort == 0 {
+		multicastPort = getIntVar(EnvVarMulticastPort, DefaultMulticastPort)
+	}
+
+	return multicastPort
+}
+
 // SetClusterName sets the name of the cluster for the purposes of multicast
 // announcements: multicast messages from differently-named instances are
 // ignored.
@@ -252,11 +271,6 @@ func SetMaxBroadcastBytes(val int) {
 	}
 }
 
-// GetMulticastEnabled sets whether multicast announcements are enabled.
-func SetMulticastEnabled(val bool) {
-	multicastEnabledString = fmt.Sprintf("%v", val)
-}
-
 // SetMulticastAddress sets the address that will be used for multicast
 // announcements.
 func SetMulticastAddress(val string) {
@@ -264,6 +278,20 @@ func SetMulticastAddress(val string) {
 		multicastAddress = DefaultMulticastAddress
 	} else {
 		multicastAddress = val
+	}
+}
+
+// GetMulticastEnabled sets whether multicast announcements are enabled.
+func SetMulticastEnabled(val bool) {
+	multicastEnabledString = fmt.Sprintf("%v", val)
+}
+
+// SetMulticastPort sets multicast announcement listening port.
+func SetMulticastPort(val int) {
+	if val == 0 {
+		multicastPort = DefaultMulticastPort
+	} else {
+		multicastPort = val
 	}
 }
 
