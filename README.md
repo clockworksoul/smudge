@@ -208,7 +208,7 @@ func main() {
 
 
 ### Adding a new member to the "known nodes" list
-Adding a new member to your known nodes list will also make that node aware of the adding server. Note that because this package doesn't yet support multicast notifications, at this time to join an existing cluster you must use this method to add at least one of that cluster's healthy member nodes.
+Adding a new member to your known nodes list will also make that node aware of the adding server. To join an existing cluster without using multicast (or on a network where multicast is disabled) you must use this method to add at least one of that cluster's healthy member nodes.
 
 ```go
 node, err := smudge.CreateNodeByAddress("localhost:10000")
