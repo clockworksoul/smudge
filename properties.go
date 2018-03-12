@@ -30,6 +30,16 @@ import (
 // default values if not set.
 
 const (
+	// EnvVarClusterName is the name of the environment variable the defines
+	// the name of the cluster. Multicast messages from differently-named
+	// instances are ignored.
+	EnvVarClusterName = "SMUDGE_CLUSTER_NAME"
+
+	// DefaultClusterName is the default name of the cluster for the purposes
+	// of multicast announcements: multicast messages from differently-named
+	// instances are ignored.
+	DefaultClusterName string = "smudge"
+
 	// EnvVarHeartbeatMillis is the name of the environment variable that
 	// sets the heartbeat frequency (in millis).
 	EnvVarHeartbeatMillis = "SMUDGE_HEARTBEAT_MILLIS"
@@ -89,6 +99,8 @@ const (
 	DefaultMulticastAddress string = ""
 )
 
+var clusterName string
+
 var heartbeatMillis int
 
 var listenPort int
@@ -106,6 +118,17 @@ var multicastEnabled bool = true
 var multicastAddress string
 
 const stringListDelimitRegex = "\\s*((,\\s*)|(\\s+))"
+
+// GetHeartbeatMillis gets the name of the cluster for the purposes of
+// multicast announcements: multicast messages from differently-named
+// instances are ignored.
+func GetClusterName() string {
+	if clusterName == "" {
+		clusterName = getStringVar(EnvVarClusterName, DefaultClusterName)
+	}
+
+	return clusterName
+}
 
 // GetHeartbeatMillis gets this host's heartbeat frequency in milliseconds.
 func GetHeartbeatMillis() int {
@@ -172,17 +195,26 @@ func GetMulticastAddress() string {
 	return multicastAddress
 }
 
+// SetClusterName sets the name of the cluster for the purposes of multicast
+// announcements: multicast messages from differently-named instances are
+// ignored.
+func SetClusterName(val string) {
+	if val == "" {
+		clusterName = DefaultClusterName
+	} else {
+		clusterName = val
+	}
+}
+
 // SetHeartbeatMillis sets this nodes heartbeat frequency. Unlike
 // SetListenPort(), calling this function after Begin() has been called will
 // have an effect.
 func SetHeartbeatMillis(val int) {
 	if val == 0 {
-		heartbeatMillis = DefaultListenPort
+		heartbeatMillis = DefaultHeartbeatMillis
 	} else {
 		heartbeatMillis = val
 	}
-
-	heartbeatMillis = val
 }
 
 // SetListenPort sets the UDP port to listen on. It has no effect once

@@ -144,13 +144,16 @@ Perhaps the simplest way of directing the behavior of the SWIM driver is by sett
 The following variables and their default values are as follows:
 
 ```
-Variable                   | Default   | Description
--------------------------- | --------- | -------------------------------
-SMUDGE_HEARTBEAT_MILLIS    |     250   | Milliseconds between heartbeats
-SMUDGE_INITIAL_HOSTS       |           | Comma-delimmited list of known members as IP or IP:PORT.
-SMUDGE_LISTEN_PORT         |    9999   | UDP port to listen on
-SMUDGE_LISTEN_IP           | 127.0.0.1 | IP address to listen on
-SMUDGE_MAX_BROADCAST_BYTES |     256   | Maximum byte length of broadcast payloads
+Variable                   | Default         | Description
+-------------------------- | --------------- | -------------------------------
+SMUDGE_CLUSTER_NAME        |      smudge     | Cluster name for for multicast discovery
+SMUDGE_HEARTBEAT_MILLIS    |       250       | Milliseconds between heartbeats
+SMUDGE_INITIAL_HOSTS       |                 | Comma-delimmited list of known members as IP or IP:PORT
+SMUDGE_LISTEN_PORT         |       9999      | UDP port to listen on
+SMUDGE_LISTEN_IP           |    127.0.0.1    | IP address to listen on
+SMUDGE_MAX_BROADCAST_BYTES |       256       | Maximum byte length of broadcast payloads
+SMUDGE_MULTICAST_ENABLED   |       true      | Multicast announce on startup; listen for multicast announcements
+SMUDGE_MULTICAST_ADDRESS   | See description | The multicast broadcast address. Default: `224.0.0.0` (IPv4) or `[ff02::1]` (IPv6)
 ```
 
 
