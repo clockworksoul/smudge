@@ -431,8 +431,10 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 		currentHeartbeat = msg.senderHeartbeat - 1
 	}
 
+	// Update statuses of the sender and any members the message includes.
 	updateStatusesFromMessage(msg)
 
+	// If there are broadcast bytes in the message, handle them here.
 	receiveBroadcast(msg.broadcast)
 
 	// Handle the verb.
@@ -716,7 +718,7 @@ func updateStatusesFromMessage(msg message) {
 
 		switch m.status {
 		case StatusForwardTo:
-			// The FORWARD_TO status isn't useful here, so we ignore those
+			// The FORWARD_TO status isn't useful here, so we ignore those.
 			continue
 		case StatusDead:
 			// Don't tell ME I'm dead.
@@ -735,7 +737,7 @@ func updateStatusesFromMessage(msg message) {
 		updateNodeStatus(msg.sender, StatusAlive, msg.senderHeartbeat, thisHost)
 	}
 
-	// First, if we don't know the sender, we add it.
+	// Finally, if we don't know the sender we add it to the known hosts map.
 	if !knownNodes.contains(msg.sender) {
 		AddNode(msg.sender)
 	}
