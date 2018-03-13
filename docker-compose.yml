@@ -1,253 +1,184 @@
 version: '2'
 
 services:
-  fish001:
+  node000:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish002:
+  node001:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish003:
+  node002:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish004:
+  node003:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish005:
+  node004:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish006:
+  node005:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish007:
+  node006:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish008:
+  node007:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish009:
+  node008:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish010:
+  node009:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish021,fish022,fish023,fish024,fish025,fish026,fish027,fish028,fish029,fish030
     networks:
       - smudgeNetwork
 
-  fish011:
+  node010:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish012:
+  node011:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish013:
+  node012:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish014:
+  node013:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish015:
+  node014:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish016:
+  node015:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish017:
+  node016:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish018:
+  node017:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish019:
+  node018:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish020:
+  node019:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish001,fish002,fish003,fish004,fish005,fish006,fish007,fish008,fish009,fish010
     networks:
       - smudgeNetwork
 
-  fish020:
+  node020:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish021:
+  node021:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish022:
+  node022:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish023:
+  node023:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish024:
+  node024:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish025:
+  node025:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish026:
+  node026:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish027:
+  node027:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish028:
+  node028:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
 
-  fish029:
+  node029:
     image: clockworksoul/smudge:latest
     command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
     networks:
       - smudgeNetwork
-
-  fish030:
-    image: clockworksoul/smudge:latest
-    command: "/smudge"
-    environment:
-      SMUDGE_INITIAL_HOSTS: fish011,fish012,fish013,fish014,fish015,fish016,fish017,fish018,fish019,fish020
-    networks:
-      - smudgeNetwork
-
 networks:
   smudgeNetwork:
