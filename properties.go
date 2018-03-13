@@ -45,7 +45,7 @@ const (
 	EnvVarHeartbeatMillis = "SMUDGE_HEARTBEAT_MILLIS"
 
 	// DefaultHeartbeatMillis is the default heartbeat frequency (in millis).
-	DefaultHeartbeatMillis int = 250
+	DefaultHeartbeatMillis int = 500
 
 	// EnvVarInitialHosts is the name of the environment variable that sets
 	// the initial known hosts. The value it sets should be a comma-delimitted
@@ -105,6 +105,29 @@ const (
 	// DefaultMulticastPort is the default value for the multicast
 	// listening port.
 	DefaultMulticastPort int = 9998
+
+	// EnvVarPingHistoryFrontload is the name of the environment variable that
+	// defines the value (in milliseconds) used to pre-populate the ping
+	// history buffer, which is used to dynamically calculate ping timeouts and
+	// is gradually overwritten with real data over time.
+	EnvVarPingHistoryFrontload = "SMUDGE_PING_HISTORY_FRONTLOAD"
+
+	// DefaultPingHistoryFrontload is the default value (in milliseconds) used
+	// to pre-populate the ping history buffer, which is used to dynamically
+	// calculate ping timeouts and is gradually overwritten with real data
+	// over time.
+	DefaultPingHistoryFrontload = 200
+
+	// EnvVarMinPingTime is the name of the environment variable that
+	// defines the lower bound on recorded ping response times (in
+	// milliseconds). This prevents the system instability and flapping that
+	// can come from consistently small values.
+	EnvVarMinPingTime = "SMUDGE_MIN_PING_TIME"
+
+	// DefaultMinPingTime is default lower bound on recorded ping response
+	// times (in milliseconds). This prevents the system instability and
+	// flapping that can come from consistently small values.
+	DefaultMinPingTime = 150
 )
 
 var clusterName string
@@ -119,6 +142,8 @@ var initialHosts []string
 
 var maxBroadcastBytes int
 
+var minPingTime int
+
 var multicastEnabledString string
 
 var multicastEnabled bool = true
@@ -126,6 +151,8 @@ var multicastEnabled bool = true
 var multicastPort int
 
 var multicastAddress string
+
+var pingHistoryFrontload int
 
 const stringListDelimitRegex = "\\s*((,\\s*)|(\\s+))"
 
@@ -185,6 +212,16 @@ func GetMaxBroadcastBytes() int {
 	return maxBroadcastBytes
 }
 
+// GetMinPingTime returns the minimum ping response time in milliseconds. Ping
+// response times below this value are recorded as this minimum.
+func GetMinPingTime() int {
+	if minPingTime == 0 {
+		minPingTime = getIntVar(EnvVarMinPingTime, DefaultMinPingTime)
+	}
+
+	return minPingTime
+}
+
 // GetMulticastEnabled returns whether multicast announcements are enabled.
 func GetMulticastEnabled() bool {
 	if multicastEnabledString == "" {
@@ -212,6 +249,17 @@ func GetMulticastPort() int {
 	}
 
 	return multicastPort
+}
+
+// GetPingHistoryFrontload returns the value (in milliseconds) used to
+// pre-populate the ping history buffer, which is used to dynamically calculate
+// ping timeouts and is gradually overwritten with real data over time.
+func GetPingHistoryFrontload() int {
+	if pingHistoryFrontload == 0 {
+		pingHistoryFrontload = getIntVar(EnvVarPingHistoryFrontload, DefaultPingHistoryFrontload)
+	}
+
+	return pingHistoryFrontload
 }
 
 // SetClusterName sets the name of the cluster for the purposes of multicast
@@ -271,6 +319,16 @@ func SetMaxBroadcastBytes(val int) {
 	}
 }
 
+// SetMinPingTime sets the minimum ping response time in milliseconds. Ping
+// response times below this value are recorded as this minimum.
+func SetMinPingTime(val int) {
+	if val == 0 {
+		minPingTime = DefaultMinPingTime
+	} else {
+		minPingTime = val
+	}
+}
+
 // SetMulticastAddress sets the address that will be used for multicast
 // announcements.
 func SetMulticastAddress(val string) {
@@ -292,6 +350,18 @@ func SetMulticastPort(val int) {
 		multicastPort = DefaultMulticastPort
 	} else {
 		multicastPort = val
+	}
+}
+
+// SetPingHistoryFrontload sets the value (in milliseconds) used to
+// pre-populate the ping history buffer, which is used to dynamically calculate
+// ping timeouts and is gradually overwritten with real data over time.
+// Setting this to 0 will restore the default value.
+func SetPingHistoryFrontload(val int) {
+	if val == 0 {
+		pingHistoryFrontload = DefaultPingHistoryFrontload
+	} else {
+		pingHistoryFrontload = val
 	}
 }
 

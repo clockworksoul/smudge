@@ -51,7 +51,7 @@ var ipLen = net.IPv4len
 // This flag is set whenever a known node is added or removed.
 var knownNodesModifiedFlag = false
 
-var pingdata = newPingData(150, 50)
+var pingdata = newPingData(GetPingHistoryFrontload(), 50)
 
 /******************************************************************************
  * Exported functions (for public consumption)
@@ -493,9 +493,10 @@ func notePingResponseTime(pack *pendingAck) {
 	pack.node.pingMillis = int(elapsedMillis)
 
 	// For the purposes of timeout tolerance, we treat all pings less than
-	// 10 as 10.
-	if elapsedMillis < 10 {
-		elapsedMillis = 10
+	// the ping lower bound as that lower bound.
+	minMillis := uint32(GetMinPingTime())
+	if elapsedMillis < minMillis {
+		elapsedMillis = minMillis
 	}
 
 	pingdata.add(elapsedMillis)
@@ -552,10 +553,6 @@ func startTimeoutCheckLoop() {
 		for k, pack := range pendingAcks.m {
 			elapsed := pack.elapsed()
 			timeoutMillis := uint32(pingdata.nSigma(timeoutToleranceSigmas))
-
-			if timeoutMillis < 100 {
-				timeoutMillis = 100
-			}
 
 			// Ping requests are expected to take quite a bit longer.
 			// Just call it 2x for now.
