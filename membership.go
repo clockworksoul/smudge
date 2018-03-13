@@ -329,7 +329,12 @@ func listenUDP(port int) error {
 }
 
 func listenUDPMulticast(port int) error {
-	listenAddress, err := net.ResolveUDPAddr("udp", guessMulticastAddress()+":"+strconv.FormatInt(int64(port), 10))
+	addr := GetMulticastAddress()
+	if addr == "" {
+		addr = guessMulticastAddress()
+	}
+
+	listenAddress, err := net.ResolveUDPAddr("udp", addr+":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
 		return err
 	}
