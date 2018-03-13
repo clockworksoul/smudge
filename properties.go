@@ -17,6 +17,7 @@ limitations under the License.
 package smudge
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"regexp"
@@ -29,6 +30,16 @@ import (
 // default values if not set.
 
 const (
+	// EnvVarClusterName is the name of the environment variable the defines
+	// the name of the cluster. Multicast messages from differently-named
+	// instances are ignored.
+	EnvVarClusterName = "SMUDGE_CLUSTER_NAME"
+
+	// DefaultClusterName is the default name of the cluster for the purposes
+	// of multicast announcements: multicast messages from differently-named
+	// instances are ignored.
+	DefaultClusterName string = "smudge"
+
 	// EnvVarHeartbeatMillis is the name of the environment variable that
 	// sets the heartbeat frequency (in millis).
 	EnvVarHeartbeatMillis = "SMUDGE_HEARTBEAT_MILLIS"
@@ -69,7 +80,34 @@ const (
 	// of 508 bytes, which must also contain status updates and additional
 	// message overhead.
 	DefaultMaxBroadcastBytes int = 256
+
+	// EnvVarMulticastAddress is the name of the environment variable that
+	// defines the multicast address that will be used.
+	EnvVarMulticastAddress = "SMUDGE_MULTICAST_ADDRESS"
+
+	// DefaultMulticastAddress is the default multicast address. Empty string
+	// indicates 224.0.0.0 for IPv4 and [ff02::1] for IPv6.
+	DefaultMulticastAddress string = ""
+
+	// EnvVarMulticastEnabled is the name of the environment variable that
+	// describes whether Smudge will attempt to announce its presence via
+	// multicast on startup.
+	EnvVarMulticastEnabled = "SMUDGE_MULTICAST_ENABLED"
+
+	// DefaultMulticastEnabled is the default value for whether Smudge will
+	// attempt to announce its presence via multicast on startup.
+	DefaultMulticastEnabled string = "true"
+
+	// EnvVarMulticastPort is the name of the environment variable that
+	// defines the multicast announcement listening port.
+	EnvVarMulticastPort = "SMUDGE_MULTICAST_PORT"
+
+	// DefaultMulticastPort is the default value for the multicast
+	// listening port.
+	DefaultMulticastPort int = 9998
 )
+
+var clusterName string
 
 var heartbeatMillis int
 
@@ -81,7 +119,26 @@ var initialHosts []string
 
 var maxBroadcastBytes int
 
+var multicastEnabledString string
+
+var multicastEnabled bool = true
+
+var multicastPort int
+
+var multicastAddress string
+
 const stringListDelimitRegex = "\\s*((,\\s*)|(\\s+))"
+
+// GetHeartbeatMillis gets the name of the cluster for the purposes of
+// multicast announcements: multicast messages from differently-named
+// instances are ignored.
+func GetClusterName() string {
+	if clusterName == "" {
+		clusterName = getStringVar(EnvVarClusterName, DefaultClusterName)
+	}
+
+	return clusterName
+}
 
 // GetHeartbeatMillis gets this host's heartbeat frequency in milliseconds.
 func GetHeartbeatMillis() int {
@@ -128,17 +185,55 @@ func GetMaxBroadcastBytes() int {
 	return maxBroadcastBytes
 }
 
+// GetMulticastEnabled returns whether multicast announcements are enabled.
+func GetMulticastEnabled() bool {
+	if multicastEnabledString == "" {
+		multicastEnabledString = strings.ToLower(getStringVar(EnvVarMulticastEnabled, DefaultMulticastEnabled))
+		multicastEnabled = len(multicastEnabledString) > 0 && []rune(multicastEnabledString)[0] == 't'
+	}
+
+	return multicastEnabled
+}
+
+// GetMulticastAddress returns the address the will be used for multicast
+// announcements.
+func GetMulticastAddress() string {
+	if multicastAddress == "" {
+		multicastAddress = getStringVar(EnvVarMulticastAddress, DefaultMulticastAddress)
+	}
+
+	return multicastAddress
+}
+
+// GetMulticastPort returns the defined multicast announcement listening port.
+func GetMulticastPort() int {
+	if multicastPort == 0 {
+		multicastPort = getIntVar(EnvVarMulticastPort, DefaultMulticastPort)
+	}
+
+	return multicastPort
+}
+
+// SetClusterName sets the name of the cluster for the purposes of multicast
+// announcements: multicast messages from differently-named instances are
+// ignored.
+func SetClusterName(val string) {
+	if val == "" {
+		clusterName = DefaultClusterName
+	} else {
+		clusterName = val
+	}
+}
+
 // SetHeartbeatMillis sets this nodes heartbeat frequency. Unlike
 // SetListenPort(), calling this function after Begin() has been called will
 // have an effect.
 func SetHeartbeatMillis(val int) {
 	if val == 0 {
-		heartbeatMillis = DefaultListenPort
+		heartbeatMillis = DefaultHeartbeatMillis
 	} else {
 		heartbeatMillis = val
 	}
-
-	heartbeatMillis = val
 }
 
 // SetListenPort sets the UDP port to listen on. It has no effect once
@@ -173,6 +268,30 @@ func SetMaxBroadcastBytes(val int) {
 		maxBroadcastBytes = DefaultMaxBroadcastBytes
 	} else {
 		maxBroadcastBytes = val
+	}
+}
+
+// SetMulticastAddress sets the address that will be used for multicast
+// announcements.
+func SetMulticastAddress(val string) {
+	if val == "" {
+		multicastAddress = DefaultMulticastAddress
+	} else {
+		multicastAddress = val
+	}
+}
+
+// GetMulticastEnabled sets whether multicast announcements are enabled.
+func SetMulticastEnabled(val bool) {
+	multicastEnabledString = fmt.Sprintf("%v", val)
+}
+
+// SetMulticastPort sets multicast announcement listening port.
+func SetMulticastPort(val int) {
+	if val == 0 {
+		multicastPort = DefaultMulticastPort
+	} else {
+		multicastPort = val
 	}
 }
 

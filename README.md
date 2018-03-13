@@ -28,7 +28,6 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 ## Known issues
 * Broadcasts are limited to 256 bytes, or 512 bytes when using IPv6.
 * No WAN support: only local-network, private IPs are supported.
-* No multicast discovery.
 
 ### Deviations from [Motivala, et al](https://pdfs.semanticscholar.org/8712/3307869ac84fc16122043a4a313604bd948f.pdf)
 
@@ -145,13 +144,17 @@ Perhaps the simplest way of directing the behavior of the SWIM driver is by sett
 The following variables and their default values are as follows:
 
 ```
-Variable                   | Default   | Description
--------------------------- | --------- | -------------------------------
-SMUDGE_HEARTBEAT_MILLIS    |     250   | Milliseconds between heartbeats
-SMUDGE_INITIAL_HOSTS       |           | Comma-delimmited list of known members as IP or IP:PORT.
-SMUDGE_LISTEN_PORT         |    9999   | UDP port to listen on
-SMUDGE_LISTEN_IP           | 127.0.0.1 | IP address to listen on
-SMUDGE_MAX_BROADCAST_BYTES |     256   | Maximum byte length of broadcast payloads
+Variable                   | Default         | Description
+-------------------------- | --------------- | -------------------------------
+SMUDGE_CLUSTER_NAME        |      smudge     | Cluster name for for multicast discovery
+SMUDGE_HEARTBEAT_MILLIS    |       250       | Milliseconds between heartbeats
+SMUDGE_INITIAL_HOSTS       |                 | Comma-delimmited list of known members as IP or IP:PORT
+SMUDGE_LISTEN_PORT         |       9999      | UDP port to listen on
+SMUDGE_LISTEN_IP           |    127.0.0.1    | IP address to listen on
+SMUDGE_MAX_BROADCAST_BYTES |       256       | Maximum byte length of broadcast payloads
+SMUDGE_MULTICAST_ENABLED   |       true      | Multicast announce on startup; listen for multicast announcements
+SMUDGE_MULTICAST_ADDRESS   | See description | The multicast broadcast address. Default: `224.0.0.0` (IPv4) or `[ff02::1]` (IPv6)
+SMUDGE_MULTICAST_PORT      |       9998      | The multicast listen port
 ```
 
 
@@ -205,7 +208,7 @@ func main() {
 
 
 ### Adding a new member to the "known nodes" list
-Adding a new member to your known nodes list will also make that node aware of the adding server. Note that because this package doesn't yet support multicast notifications, at this time to join an existing cluster you must use this method to add at least one of that cluster's healthy member nodes.
+Adding a new member to your known nodes list will also make that node aware of the adding server. To join an existing cluster without using multicast (or on a network where multicast is disabled) you must use this method to add at least one of that cluster's healthy member nodes.
 
 ```go
 node, err := smudge.CreateNodeByAddress("localhost:10000")
