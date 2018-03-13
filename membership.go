@@ -352,8 +352,6 @@ func listenUDPMulticast(port int) error {
 			name, msgBytes := decodeMulticastAnnounceBytes(bytes)
 
 			if GetClusterName() == name {
-				logfInfo("Got in-cluster multicast announcement: %v\n", name)
-
 				err = receiveMessageUDP(addr, msgBytes)
 				if err != nil {
 					logError(err)
