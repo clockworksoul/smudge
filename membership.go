@@ -357,8 +357,16 @@ func listenUDPMulticast(port int) error {
 			name, msgBytes := decodeMulticastAnnounceBytes(bytes)
 
 			if GetClusterName() == name {
-				err = receiveMessageUDP(addr, msgBytes)
-				if err != nil {
+				msg, err := decodeMessage(addr.IP, msgBytes)
+				if err == nil {
+					logfTrace("Got multicast %v from %v code=%d\n",
+						msg.verb,
+						msg.sender.Address(),
+						msg.senderHeartbeat)
+
+					// Update statuses of the sender.
+					updateStatusesFromMessage(msg)
+				} else {
 					logError(err)
 				}
 			}
@@ -367,7 +375,9 @@ func listenUDPMulticast(port int) error {
 }
 
 // multicastAnnounce is called when the server first starts to broadcast its
-// presence to all listening servers within the specified subnet.
+// presence to all listening servers within the specified subnet and continues
+// to broadcast its presence every multicastAnnounceIntervalSeconds in case
+// this value is larger than zero.
 func multicastAnnounce(addr string) error {
 	if addr == "" {
 		addr = guessMulticastAddress()
@@ -383,23 +393,29 @@ func multicastAnnounce(addr string) error {
 		return err
 	}
 
-	c, err := net.DialUDP("udp", nil, address)
-	if err != nil {
-		logError(err)
-		return err
+	for {
+		c, err := net.DialUDP("udp", nil, address)
+		if err != nil {
+			logError(err)
+			return err
+		}
+
+		// Compose and send the multicast announcement
+		msgBytes := encodeMulticastAnnounceBytes()
+		_, err = c.Write(msgBytes)
+		if err != nil {
+			logError(err)
+			return err
+		}
+
+		logfTrace("Sent announcement multicast to %v\n", fullAddr)
+
+		if GetMulticastAnnounceIntervalSeconds() > 0 {
+			time.Sleep(time.Second * time.Duration(GetMulticastAnnounceIntervalSeconds()))
+		} else {
+			return nil
+		}
 	}
-
-	// Compose and send the multicast announcement
-	msgBytes := encodeMulticastAnnounceBytes()
-	_, err = c.Write(msgBytes)
-	if err != nil {
-		logError(err)
-		return err
-	}
-
-	logfTrace("Sent announcement multicast to %v\n", fullAddr)
-
-	return nil
 }
 
 // The number of nodes to send a PINGREQ to when a PING times out.

@@ -6,7 +6,7 @@
 
 <img src="https://github.com/clockworksoul/smudge/raw/master/logo/logo.png" width="150">
 
-## Introduction 
+## Introduction
 Smudge is a minimalist Go implementation of the [SWIM](https://pdfs.semanticscholar.org/8712/3307869ac84fc16122043a4a313604bd948f.pdf) (Scalable Weakly-consistent Infection-style Membership) protocol for cluster node membership, status dissemination, and failure detection developed at Cornell University by Motivala, et al. It isn't a distributed data store in its own right, but rather a framework intended to facilitate the construction of such systems.
 
 Smudge also extends the standard SWIM protocol so that in addition to the standard membership status functionality it also allows the transmission of broadcasts containing a small amount (256 bytes) of arbitrary content to all present healthy members. This maximum is related to the limit imposed on maximum safe UDP packet size by RFC 791 and RFC 2460. We recognize that some systems allow larger packets, however, and although that can risk fragmentation and dropped packets the maximum payload size is configurable.
@@ -144,17 +144,18 @@ Perhaps the simplest way of directing the behavior of the SWIM driver is by sett
 The following variables and their default values are as follows:
 
 ```
-Variable                   | Default         | Description
--------------------------- | --------------- | -------------------------------
-SMUDGE_CLUSTER_NAME        |      smudge     | Cluster name for for multicast discovery
-SMUDGE_HEARTBEAT_MILLIS    |       250       | Milliseconds between heartbeats
-SMUDGE_INITIAL_HOSTS       |                 | Comma-delimmited list of known members as IP or IP:PORT
-SMUDGE_LISTEN_PORT         |       9999      | UDP port to listen on
-SMUDGE_LISTEN_IP           |    127.0.0.1    | IP address to listen on
-SMUDGE_MAX_BROADCAST_BYTES |       256       | Maximum byte length of broadcast payloads
-SMUDGE_MULTICAST_ENABLED   |       true      | Multicast announce on startup; listen for multicast announcements
-SMUDGE_MULTICAST_ADDRESS   | See description | The multicast broadcast address. Default: `224.0.0.0` (IPv4) or `[ff02::1]` (IPv6)
-SMUDGE_MULTICAST_PORT      |       9998      | The multicast listen port
+Variable                           | Default         | Description
+---------------------------------- | --------------- | -------------------------------
+SMUDGE_CLUSTER_NAME                |      smudge     | Cluster name for for multicast discovery
+SMUDGE_HEARTBEAT_MILLIS            |       250       | Milliseconds between heartbeats
+SMUDGE_INITIAL_HOSTS               |                 | Comma-delimmited list of known members as IP or IP:PORT
+SMUDGE_LISTEN_PORT                 |       9999      | UDP port to listen on
+SMUDGE_LISTEN_IP                   |    127.0.0.1    | IP address to listen on
+SMUDGE_MAX_BROADCAST_BYTES         |       256       | Maximum byte length of broadcast payloads
+SMUDGE_MULTICAST_ENABLED           |       true      | Multicast announce on startup; listen for multicast announcements
+SMUDGE_MULTICAST_ANNOUNCE_INTERVAL |        0        | Seconds between multicast announcements, 0 will disable subsequent anouncements
+SMUDGE_MULTICAST_ADDRESS           | See description | The multicast broadcast address. Default: `224.0.0.0` (IPv4) or `[ff02::1]` (IPv6)
+SMUDGE_MULTICAST_PORT              |       9998      | The multicast listen port
 ```
 
 
@@ -174,35 +175,35 @@ Creating a status change listener is very straight-forward:
 
 ```go
 type MyStatusListener struct {
-	smudge.StatusListener
+    smudge.StatusListener
 }
 
 func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
-	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
+    fmt.Printf("Node %s is now status %s\n", node.Address(), status)
 }
 
 func main() {
-	smudge.AddStatusListener(MyStatusListener{})
+    smudge.AddStatusListener(MyStatusListener{})
 }
 ```
 
 
 ### Creating and adding a broadcast listener
-Adding a broadcast listener is very similar to creating a status listener: 
+Adding a broadcast listener is very similar to creating a status listener:
 
 ```go
 type MyBroadcastListener struct {
-	smudge.BroadcastListener
+    smudge.BroadcastListener
 }
 
 func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
-	fmt.Printf("Received broadcast from %v: %s\n",
-		b.Origin().Address(),
-		string(b.Bytes()))
+    fmt.Printf("Received broadcast from %v: %s\n",
+        b.Origin().Address(),
+        string(b.Bytes()))
 }
 
 func main() {
-	smudge.AddBroadcastListener(MyBroadcastListener{})
+    smudge.AddBroadcastListener(MyBroadcastListener{})
 }
 ```
 
@@ -247,46 +248,46 @@ import "fmt"
 import "net"
 
 type MyStatusListener struct {
-	smudge.StatusListener
+    smudge.StatusListener
 }
 
 func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
-	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
+    fmt.Printf("Node %s is now status %s\n", node.Address(), status)
 }
 
 type MyBroadcastListener struct {
-	smudge.BroadcastListener
+    smudge.BroadcastListener
 }
 
 func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
-	fmt.Printf("Received broadcast from %s: %s\n",
-		b.Origin().Address(),
-		string(b.Bytes()))
+    fmt.Printf("Received broadcast from %s: %s\n",
+        b.Origin().Address(),
+        string(b.Bytes()))
 }
 
 func main() {
-	heartbeatMillis := 500
-	listenPort := 9999
+    heartbeatMillis := 500
+    listenPort := 9999
 
-	// Set configuration options
-	smudge.SetListenPort(listenPort)
-	smudge.SetHeartbeatMillis(heartbeatMillis)
-	smudge.SetListenIP(net.ParseIP("127.0.0.1"))
+    // Set configuration options
+    smudge.SetListenPort(listenPort)
+    smudge.SetHeartbeatMillis(heartbeatMillis)
+    smudge.SetListenIP(net.ParseIP("127.0.0.1"))
 
-	// Add the status listener
-	smudge.AddStatusListener(MyStatusListener{})
+    // Add the status listener
+    smudge.AddStatusListener(MyStatusListener{})
 
-	// Add the broadcast listener
-	smudge.AddBroadcastListener(MyBroadcastListener{})
+    // Add the broadcast listener
+    smudge.AddBroadcastListener(MyBroadcastListener{})
 
-	// Add a new remote node. Currently, to join an existing cluster you must
-	// add at least one of its healthy member nodes.
-	node, err := smudge.CreateNodeByAddress("localhost:10000")
-	if err == nil {
-		smudge.AddNode(node)
-	}
+    // Add a new remote node. Currently, to join an existing cluster you must
+    // add at least one of its healthy member nodes.
+    node, err := smudge.CreateNodeByAddress("localhost:10000")
+    if err == nil {
+        smudge.AddNode(node)
+    }
 
-	// Start the server!
-	smudge.Begin()
+    // Start the server!
+    smudge.Begin()
 }
 ```

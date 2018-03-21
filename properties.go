@@ -98,6 +98,15 @@ const (
 	// attempt to announce its presence via multicast on startup.
 	DefaultMulticastEnabled string = "true"
 
+	// EnvVarMulticastAnnounceIntervalSeconds is the name of the environment
+	// variable that describes whether Smudge will attempt to re-announce its
+	// presence via multicast every X seconds.
+	EnvVarMulticastAnnounceIntervalSeconds = "SMUDGE_MULTICAST_ANNOUNCE_INTERVAL"
+
+	// DefaultMulticastAnnounceIntervalSeconds is the default value for whether
+	// Smudge will re-announce its presence via multicast
+	DefaultMulticastAnnounceIntervalSeconds = 0
+
 	// EnvVarMulticastPort is the name of the environment variable that
 	// defines the multicast announcement listening port.
 	EnvVarMulticastPort = "SMUDGE_MULTICAST_PORT"
@@ -146,7 +155,9 @@ var minPingTime int
 
 var multicastEnabledString string
 
-var multicastEnabled bool = true
+var multicastEnabled = true
+
+var multicastAnnounceIntervalSeconds = 10
 
 var multicastPort int
 
@@ -156,7 +167,7 @@ var pingHistoryFrontload int
 
 const stringListDelimitRegex = "\\s*((,\\s*)|(\\s+))"
 
-// GetHeartbeatMillis gets the name of the cluster for the purposes of
+// GetClusterName gets the name of the cluster for the purposes of
 // multicast announcements: multicast messages from differently-named
 // instances are ignored.
 func GetClusterName() string {
@@ -230,6 +241,13 @@ func GetMulticastEnabled() bool {
 	}
 
 	return multicastEnabled
+}
+
+// GetMulticastAnnounceIntervalSeconds returns the amount of seconds to wait between
+// multicast announcements.
+func GetMulticastAnnounceIntervalSeconds() int {
+	multicastAnnounceIntervalSeconds = getIntVar(EnvVarMulticastAnnounceIntervalSeconds, DefaultMulticastAnnounceIntervalSeconds)
+	return multicastAnnounceIntervalSeconds
 }
 
 // GetMulticastAddress returns the address the will be used for multicast
@@ -339,9 +357,14 @@ func SetMulticastAddress(val string) {
 	}
 }
 
-// GetMulticastEnabled sets whether multicast announcements are enabled.
+// SetMulticastEnabled sets whether multicast announcements are enabled.
 func SetMulticastEnabled(val bool) {
 	multicastEnabledString = fmt.Sprintf("%v", val)
+}
+
+// SetMulticastAnnounceIntervalSeconds sets the number of seconds between multicast announcements
+func SetMulticastAnnounceIntervalSeconds(val int) {
+	multicastAnnounceIntervalSeconds = val
 }
 
 // SetMulticastPort sets multicast announcement listening port.
