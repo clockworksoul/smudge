@@ -101,7 +101,7 @@ const (
 
 	// DefaultMulticastAnnounceIntervalSeconds is the default value for whether Smudge
 	// will re-announce its presence via multicast
-	DefaultMulticastAnnounceIntervalSeconds = 10
+	DefaultMulticastAnnounceIntervalSeconds = 0
 
 	// DefaultMulticastEnabled is the default value for whether Smudge will
 	// attempt to announce its presence via multicast on startup.

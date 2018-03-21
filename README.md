@@ -153,7 +153,7 @@ SMUDGE_LISTEN_PORT                 |       9999      | UDP port to listen on
 SMUDGE_LISTEN_IP                   |    127.0.0.1    | IP address to listen on
 SMUDGE_MAX_BROADCAST_BYTES         |       256       | Maximum byte length of broadcast payloads
 SMUDGE_MULTICAST_ENABLED           |       true      | Multicast announce on startup; listen for multicast announcements
-SMUDGE_MULTICAST_ANNOUNCE_INTERVAL |        10       | Seconds between multicast announcements, 0 will disable subsequent anouncements
+SMUDGE_MULTICAST_ANNOUNCE_INTERVAL |        0        | Seconds between multicast announcements, 0 will disable subsequent anouncements
 SMUDGE_MULTICAST_ADDRESS           | See description | The multicast broadcast address. Default: `224.0.0.0` (IPv4) or `[ff02::1]` (IPv6)
 SMUDGE_MULTICAST_PORT              |       9998      | The multicast listen port
 ```
