@@ -94,18 +94,18 @@ const (
 	// multicast on startup.
 	EnvVarMulticastEnabled = "SMUDGE_MULTICAST_ENABLED"
 
-	// EnvVarMulticastAnnounceInterval is the name of the environment variable
-	// that describes whether Smudge will attempt to re-announce its presence
-	// via multicast every X seconds.
-	EnvVarMulticastAnnounceInterval = "SMUDGE_MULTICAST_ANNOUNCE_INTERVAL"
-
-	// DefaultMulticastAnnounceIntervalSeconds is the default value for whether Smudge
-	// will re-announce its presence via multicast
-	DefaultMulticastAnnounceIntervalSeconds = 0
-
 	// DefaultMulticastEnabled is the default value for whether Smudge will
 	// attempt to announce its presence via multicast on startup.
 	DefaultMulticastEnabled string = "true"
+
+	// EnvVarMulticastAnnounceIntervalSeconds is the name of the environment
+	// variable that describes whether Smudge will attempt to re-announce its
+	// presence via multicast every X seconds.
+	EnvVarMulticastAnnounceIntervalSeconds = "SMUDGE_MULTICAST_ANNOUNCE_INTERVAL"
+
+	// DefaultMulticastAnnounceIntervalSeconds is the default value for whether
+	// Smudge will re-announce its presence via multicast
+	DefaultMulticastAnnounceIntervalSeconds = 0
 
 	// EnvVarMulticastPort is the name of the environment variable that
 	// defines the multicast announcement listening port.
@@ -246,7 +246,7 @@ func GetMulticastEnabled() bool {
 // GetMulticastAnnounceIntervalSeconds returns the amount of seconds to wait between
 // multicast announcements.
 func GetMulticastAnnounceIntervalSeconds() int {
-	multicastAnnounceIntervalSeconds = getIntVar(EnvVarMulticastAnnounceInterval, DefaultMulticastAnnounceIntervalSeconds)
+	multicastAnnounceIntervalSeconds = getIntVar(EnvVarMulticastAnnounceIntervalSeconds, DefaultMulticastAnnounceIntervalSeconds)
 	return multicastAnnounceIntervalSeconds
 }
 
