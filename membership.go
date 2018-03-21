@@ -383,23 +383,29 @@ func multicastAnnounce(addr string) error {
 		return err
 	}
 
-	c, err := net.DialUDP("udp", nil, address)
-	if err != nil {
-		logError(err)
-		return err
+	for {
+		c, err := net.DialUDP("udp", nil, address)
+		if err != nil {
+			logError(err)
+			return err
+		}
+
+		// Compose and send the multicast announcement
+		msgBytes := encodeMulticastAnnounceBytes()
+		_, err = c.Write(msgBytes)
+		if err != nil {
+			logError(err)
+			return err
+		}
+
+		logfTrace("Sent announcement multicast to %v\n", fullAddr)
+
+		if GetMulticastAnnounceInterval() > 0 {
+			time.Sleep(time.Second * 10)
+		} else {
+			return nil
+		}
 	}
-
-	// Compose and send the multicast announcement
-	msgBytes := encodeMulticastAnnounceBytes()
-	_, err = c.Write(msgBytes)
-	if err != nil {
-		logError(err)
-		return err
-	}
-
-	logfTrace("Sent announcement multicast to %v\n", fullAddr)
-
-	return nil
 }
 
 // The number of nodes to send a PINGREQ to when a PING times out.
