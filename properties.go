@@ -99,9 +99,9 @@ const (
 	// via multicast every X seconds.
 	EnvVarMulticastAnnounceInterval = "SMUDGE_MULTICAST_ANNOUNCE_INTERVAL"
 
-	// DefaultMulticastAnnounceInterval is the default value for whether Smudge
+	// DefaultMulticastAnnounceIntervalSeconds is the default value for whether Smudge
 	// will re-announce its presence via multicast
-	DefaultMulticastAnnounceInterval = 10
+	DefaultMulticastAnnounceIntervalSeconds = 10
 
 	// DefaultMulticastEnabled is the default value for whether Smudge will
 	// attempt to announce its presence via multicast on startup.
@@ -155,9 +155,9 @@ var minPingTime int
 
 var multicastEnabledString string
 
-var multicastEnabled bool = true
+var multicastEnabled = true
 
-var multicastAnnounceInterval = 10
+var multicastAnnounceIntervalSeconds = 10
 
 var multicastPort int
 
@@ -243,11 +243,11 @@ func GetMulticastEnabled() bool {
 	return multicastEnabled
 }
 
-// GetMulticastAnnounceInterval returns the amount of seconds to wait between
+// GetMulticastAnnounceIntervalSeconds returns the amount of seconds to wait between
 // multicast announcements.
-func GetMulticastAnnounceInterval() int {
-	multicastAnnounceInterval = getIntVar(EnvVarMulticastAnnounceInterval, DefaultMulticastAnnounceInterval)
-	return multicastAnnounceInterval
+func GetMulticastAnnounceIntervalSeconds() int {
+	multicastAnnounceIntervalSeconds = getIntVar(EnvVarMulticastAnnounceInterval, DefaultMulticastAnnounceIntervalSeconds)
+	return multicastAnnounceIntervalSeconds
 }
 
 // GetMulticastAddress returns the address the will be used for multicast
@@ -362,9 +362,9 @@ func SetMulticastEnabled(val bool) {
 	multicastEnabledString = fmt.Sprintf("%v", val)
 }
 
-// SetMulticastAnnounceInterval sets the number of seconds between multicast announcements
-func SetMulticastAnnounceInterval(val int) {
-	multicastAnnounceInterval = val
+// SetMulticastAnnounceIntervalSeconds sets the number of seconds between multicast announcements
+func SetMulticastAnnounceIntervalSeconds(val int) {
+	multicastAnnounceIntervalSeconds = val
 }
 
 // SetMulticastPort sets multicast announcement listening port.

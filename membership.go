@@ -367,7 +367,9 @@ func listenUDPMulticast(port int) error {
 }
 
 // multicastAnnounce is called when the server first starts to broadcast its
-// presence to all listening servers within the specified subnet.
+// presence to all listening servers within the specified subnet and continues
+// to broadcast its presence every multicastAnnounceIntervalSeconds in case
+// this value is larger than zero.
 func multicastAnnounce(addr string) error {
 	if addr == "" {
 		addr = guessMulticastAddress()
@@ -400,7 +402,7 @@ func multicastAnnounce(addr string) error {
 
 		logfTrace("Sent announcement multicast to %v\n", fullAddr)
 
-		if GetMulticastAnnounceInterval() > 0 {
+		if GetMulticastAnnounceIntervalSeconds() > 0 {
 			time.Sleep(time.Second * 10)
 		} else {
 			return nil
