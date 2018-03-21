@@ -357,8 +357,16 @@ func listenUDPMulticast(port int) error {
 			name, msgBytes := decodeMulticastAnnounceBytes(bytes)
 
 			if GetClusterName() == name {
-				err = receiveMessageUDP(addr, msgBytes)
-				if err != nil {
+				msg, err := decodeMessage(addr.IP, msgBytes)
+				if err == nil {
+					logfTrace("Got multicast %v from %v code=%d\n",
+						msg.verb,
+						msg.sender.Address(),
+						msg.senderHeartbeat)
+
+					// Update statuses of the sender.
+					updateStatusesFromMessage(msg)
+				} else {
 					logError(err)
 				}
 			}
