@@ -97,7 +97,7 @@ func Begin() {
 		}
 	}
 
-	if multicastEnabled {
+	if GetMulticastEnabled() {
 		go listenUDPMulticast(GetMulticastPort())
 		go multicastAnnounce(GetMulticastAddress())
 	}
