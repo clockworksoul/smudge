@@ -32,8 +32,8 @@ var statusListeners = struct {
 // of the cluster member status update notification functionality provided by
 // the AddBroadcastListener() function.
 type BroadcastListener interface {
-	// The OnChange() function is called whenever the node is notified of any
-	// change in the status of a cluster member.
+	// The OnBroadcast() function is called whenever the node is notified of
+	// an incoming broadcast message.
 	OnBroadcast(broadcast *Broadcast)
 }
 
