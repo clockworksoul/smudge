@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,8 +52,6 @@ const (
 	LogOff
 )
 
-var logThreshhold = LogInfo
-
 func (s LogLevel) String() string {
 	switch s {
 	case LogAll:
@@ -77,26 +75,71 @@ func (s LogLevel) String() string {
 	}
 }
 
+// Logger should be implemented by Logger's that are passed via SetLogger.
+type Logger interface {
+	Log(level LogLevel, a ...interface{}) (int, error)
+	Logf(level LogLevel, format string, a ...interface{}) (int, error)
+}
+
+// DefaultLogger is the default logger that is included with Smudge.
+type DefaultLogger struct{}
+
+var (
+	logThreshhold LogLevel
+	logger        Logger
+)
+
 // SetLogThreshold allows the output noise level to be adjusted by setting
 // the logging priority threshold.
 func SetLogThreshold(level LogLevel) {
 	logThreshhold = level
 }
 
-func prefix(level LogLevel) string {
-	f := time.Now().Format("02/Jan/2006:15:04:05 MST")
+// SetLogger plugs in another logger to control the output of the library
+func SetLogger(l Logger) {
+	logger = l
+}
 
-	return fmt.Sprintf("%5s %s -", level.String(), f)
+// Log writes a log message of a certain level to the logger
+func (d DefaultLogger) Log(level LogLevel, a ...interface{}) (n int, err error) {
+	if level >= logThreshhold {
+		fmt.Fprint(os.Stdout, prefix(level)+" ")
+		return fmt.Fprintln(os.Stdout, a...)
+	}
+	return 0, nil
+}
+
+// Logf writes a log message with a specific format to the logger
+func (d DefaultLogger) Logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
+	if level >= logThreshhold {
+		return fmt.Fprintf(os.Stdout, prefix(level)+" "+format, a...)
+	}
+
+	return 0, nil
+}
+
+func init() {
+	SetLogger(DefaultLogger{})
+	SetLogThreshold(LogInfo)
 }
 
 func log(level LogLevel, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
-		fmt.Fprint(os.Stdout, prefix(level)+" ")
-
-		return fmt.Fprintln(os.Stdout, a...)
+		return logger.Log(level, a...)
 	}
-
 	return 0, nil
+}
+func logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
+	if level >= logThreshhold {
+		return logger.Logf(level, format, a...)
+	}
+	return 0, nil
+}
+
+func prefix(level LogLevel) string {
+	f := time.Now().Format("02/Jan/2006:15:04:05 MST")
+
+	return fmt.Sprintf("%5s %s -", level.String(), f)
 }
 
 func logTrace(a ...interface{}) (n int, err error) {
@@ -121,14 +164,6 @@ func logError(a ...interface{}) (n int, err error) {
 
 func logFatal(a ...interface{}) (n int, err error) {
 	return log(LogFatal, a...)
-}
-
-func logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
-	if level >= logThreshhold {
-		return fmt.Fprintf(os.Stdout, prefix(level)+" "+format, a...)
-	}
-
-	return 0, nil
 }
 
 func logfTrace(format string, a ...interface{}) (n int, err error) {

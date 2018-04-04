@@ -20,8 +20,46 @@ import (
 	"flag"
 	"fmt"
 	"github.com/clockworksoul/smudge"
-	"log"
+	"github.com/rs/zerolog/log"
 )
+
+type logger struct {
+}
+
+// Log writes a log message of a certain level to the logger
+func (l logger) Log(level smudge.LogLevel, a ...interface{}) (n int, err error) {
+	str := fmt.Sprint(a...)
+	switch level {
+	case smudge.LogFatal:
+		log.Fatal().Msg(str)
+	case smudge.LogInfo:
+		log.Info().Msg(str)
+	case smudge.LogError:
+		log.Error().Msg(str)
+	case smudge.LogWarn:
+		log.Warn().Msg(str)
+	default:
+		log.Debug().Msg(str)
+	}
+	return 0, nil
+}
+
+// Log writes a log message of a certain level to the logger
+func (l logger) Logf(level smudge.LogLevel, format string, a ...interface{}) (n int, err error) {
+	switch level {
+	case smudge.LogFatal:
+		log.Fatal().Msgf(format, a...)
+	case smudge.LogInfo:
+		log.Info().Msgf(format, a...)
+	case smudge.LogError:
+		log.Error().Msgf(format, a...)
+	case smudge.LogWarn:
+		log.Warn().Msgf(format, a...)
+	default:
+		log.Debug().Msgf(format, a...)
+	}
+	return 0, nil
+}
 
 func main() {
 	var nodeAddress string
@@ -43,10 +81,11 @@ func main() {
 
 	ip, err := smudge.GetLocalIP()
 	if err != nil {
-		log.Fatal("Could not get local ip:", err)
+		log.Fatal().Msgf("Could not get local ip: %s\n", err)
 	}
 
 	smudge.SetLogThreshold(smudge.LogInfo)
+	smudge.SetLogger(logger{})
 	smudge.SetListenPort(listenPort)
 	smudge.SetHeartbeatMillis(heartbeatMillis)
 	smudge.SetListenIP(ip)

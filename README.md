@@ -23,7 +23,7 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 * Member status changes are eventually detected by all non-faulty members of the cluster (strong completeness).
 * Supports transmission of short broadcasts that are propagated at most once to all present, healthy members.
 * Supports both IPv4 and IPv6.
-
+* Pluggable logging
 
 ## Known issues
 * Broadcasts are limited to 256 bytes, or 512 bytes when using IPv6.
@@ -33,7 +33,6 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 
 * Dead nodes are not immediately removed, but are instead periodically re-tried (with exponential backoff) for a time before finally being removed.
 * Smudge allows the transmission of short, arbitrary-content broadcasts to all healthy nodes.
-
 
 ## How to build
 
@@ -169,7 +168,6 @@ smudge.SetListenIP(net.ParseIP("127.0.0.1"))
 smudge.SetMaxBroadcastBytes(256) // set to 512 when using IPv6
 ```
 
-
 ### Creating and adding a status change listener
 Creating a status change listener is very straight-forward:
 
@@ -186,7 +184,6 @@ func main() {
     smudge.AddStatusListener(MyStatusListener{})
 }
 ```
-
 
 ### Creating and adding a broadcast listener
 Adding a broadcast listener is very similar to creating a status listener:
@@ -207,7 +204,6 @@ func main() {
 }
 ```
 
-
 ### Adding a new member to the "known nodes" list
 Adding a new member to your known nodes list will also make that node aware of the adding server. To join an existing cluster without using multicast (or on a network where multicast is disabled) you must use this method to add at least one of that cluster's healthy member nodes.
 
@@ -218,12 +214,10 @@ if err == nil {
 }
 ```
 
-
 ### Starting the server
 Once everything else is done, starting the server is trivial:
 
 Simply call: `smudge.Begin()`
-
 
 ### Transmitting a broadcast
 To transmit a broadcast to all healthy nodes currenty in the cluster you can use one of the [`BroadcastBytes(bytes []byte)`](https://godoc.org/github.com/clockworksoul/smudge#BroadcastBytes) or [`BroadcastString(str string)`](https://godoc.org/github.com/clockworksoul/smudge#BroadcastString) functions.
@@ -233,10 +227,8 @@ Be aware of the following caveats:
 * The broadcast _will not_ be received by the originating member; `BroadcastListener`s on the originating member will not be triggered.
 * Nodes that join the cluster after the broadcast has been fully propagated will not receive the broadcast; nodes that join after the initial transmission but before complete proagation may or may not receive the broadcast.
 
-
 ### Getting a list of nodes
 The [`AllNodes()`](https://godoc.org/github.com/clockworksoul/smudge#AllNodes) can be used to get all known nodes; [`HealthyNodes()`](https://godoc.org/github.com/clockworksoul/smudge#HealthyNodes) works similarly, but returns only healthy nodes (defined as nodes with a [status](https://godoc.org/github.com/clockworksoul/smudge#NodeStatus) of "alive").
-
 
 ### Everything in one place
 
@@ -291,3 +283,8 @@ func main() {
     smudge.Begin()
 }
 ```
+
+### Bringing your own logger
+
+Smudge comes with a `DefaultLogger` that prints out log messages to `stdout`. You can plug in your own logger by implementing the functions of the `Logger` interface and setting the logger by calling `smudge.SetLogger(MyCoolLogger)`.
+
