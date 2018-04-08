@@ -33,7 +33,7 @@ var statusListeners = struct {
 // the AddBroadcastListener() function.
 type BroadcastListener interface {
 	// The OnBroadcast() function is called whenever the node is notified of
-	// a new broadcast message.
+	// an incoming broadcast message.
 	OnBroadcast(broadcast *Broadcast)
 }
 
