@@ -237,9 +237,9 @@ func GetMinPingTime() int {
 func GetMulticastEnabled() bool {
 	if multicastEnabledString == "" {
 		multicastEnabledString = strings.ToLower(getStringVar(EnvVarMulticastEnabled, DefaultMulticastEnabled))
-		multicastEnabled = len(multicastEnabledString) > 0 && []rune(multicastEnabledString)[0] == 't'
 	}
 
+	multicastEnabled = len(multicastEnabledString) > 0 && []rune(multicastEnabledString)[0] == 't'
 	return multicastEnabled
 }
 

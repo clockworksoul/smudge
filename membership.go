@@ -17,6 +17,7 @@ limitations under the License.
 package smudge
 
 import (
+	"errors"
 	"math"
 	"net"
 	"strconv"
@@ -192,13 +193,18 @@ func PingNode(node *Node) error {
 // Byte  0      - 1 byte character byte length N
 // Bytes 1 to N - Cluster name bytes
 // Bytes N+1... - A message (without members)
-func decodeMulticastAnnounceBytes(bytes []byte) (string, []byte) {
+func decodeMulticastAnnounceBytes(bytes []byte) (string, []byte, error) {
 	nameBytesLen := int(bytes[0])
+
+	if nameBytesLen+1 > len(bytes) {
+		return "", nil, errors.New("Invalid multicast message received")
+	}
+
 	nameBytes := bytes[1 : nameBytesLen+1]
 	name := string(nameBytes)
 	msgBytes := bytes[nameBytesLen+1 : len(bytes)]
 
-	return name, msgBytes
+	return name, msgBytes, nil
 }
 
 func doForwardOnTimeout(pack *pendingAck) {
@@ -354,20 +360,24 @@ func listenUDPMulticast(port int) error {
 		}
 
 		go func(addr *net.UDPAddr, bytes []byte) {
-			name, msgBytes := decodeMulticastAnnounceBytes(bytes)
+			name, msgBytes, err := decodeMulticastAnnounceBytes(bytes)
 
-			if GetClusterName() == name {
-				msg, err := decodeMessage(addr.IP, msgBytes)
-				if err == nil {
-					logfTrace("Got multicast %v from %v code=%d\n",
-						msg.verb,
-						msg.sender.Address(),
-						msg.senderHeartbeat)
+			if err != nil {
+				logDebug("Ignoring unexpected multicast message.")
+			} else {
+				if GetClusterName() == name {
+					msg, err := decodeMessage(addr.IP, msgBytes)
+					if err == nil {
+						logfTrace("Got multicast %v from %v code=%d\n",
+							msg.verb,
+							msg.sender.Address(),
+							msg.senderHeartbeat)
 
-					// Update statuses of the sender.
-					updateStatusesFromMessage(msg)
-				} else {
-					logError(err)
+						// Update statuses of the sender.
+						updateStatusesFromMessage(msg)
+					} else {
+						logError(err)
+					}
 				}
 			}
 		}(addr, buf[0:n])
