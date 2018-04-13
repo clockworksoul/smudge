@@ -103,8 +103,8 @@ func SetLogger(l Logger) {
 // Log writes a log message of a certain level to the logger
 func (d DefaultLogger) Log(level LogLevel, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
-		fmt.Fprint(os.Stdout, prefix(level)+" ")
-		return fmt.Fprintln(os.Stdout, a...)
+		fmt.Fprint(os.Stderr, prefix(level)+" ")
+		return fmt.Fprintln(os.Stderr, a...)
 	}
 	return 0, nil
 }
@@ -112,7 +112,7 @@ func (d DefaultLogger) Log(level LogLevel, a ...interface{}) (n int, err error) 
 // Logf writes a log message with a specific format to the logger
 func (d DefaultLogger) Logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
-		return fmt.Fprintf(os.Stdout, prefix(level)+" "+format, a...)
+		return fmt.Fprintf(os.Stderr, prefix(level)+" "+format, a...)
 	}
 
 	return 0, nil
