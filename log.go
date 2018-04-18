@@ -112,7 +112,7 @@ func (d DefaultLogger) Log(level LogLevel, a ...interface{}) (n int, err error) 
 // Logf writes a log message with a specific format to the logger
 func (d DefaultLogger) Logf(level LogLevel, format string, a ...interface{}) (n int, err error) {
 	if level >= logThreshhold {
-		return fmt.Fprintf(os.Stderr, prefix(level)+" "+format, a...)
+		return fmt.Fprintf(os.Stderr, prefix(level)+" "+format+"\n", a...)
 	}
 
 	return 0, nil

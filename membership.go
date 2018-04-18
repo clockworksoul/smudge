@@ -62,7 +62,7 @@ var pingdata = newPingData(GetPingHistoryFrontload(), 50)
 // Note that this is a blocking function, so act appropriately.
 func Begin() {
 	// Add this host.
-	logfInfo("Using listen IP: %s\n", listenIP)
+	logfInfo("Using listen IP: %s", listenIP)
 
 	// Use IPv6 address length if the listen IP is not an IPv4 address
 	if listenIP.To4() == nil {
@@ -92,7 +92,7 @@ func Begin() {
 	for _, address := range GetInitialHosts() {
 		n, err := CreateNodeByAddress(address)
 		if err != nil {
-			logfError("Could not create node %s: %v\n", address, err)
+			logfError("Could not create node %s: %v", address, err)
 		} else {
 			AddNode(n)
 		}
@@ -150,7 +150,7 @@ func Begin() {
 
 			currentHeartbeat++
 
-			logfTrace("%d - hosts=%d (announce=%d forward=%d)\n",
+			logfTrace("%d - hosts=%d (announce=%d forward=%d)",
 				currentHeartbeat,
 				len(randomAllNodes),
 				emitCount(),
@@ -216,7 +216,7 @@ func doForwardOnTimeout(pack *pendingAck) {
 		updateNodeStatus(pack.node, StatusDead, currentHeartbeat, thisHost)
 	} else {
 		for i, n := range filteredNodes {
-			logfDebug("(%d/%d) Requesting indirect ping of %s via %s\n",
+			logfDebug("(%d/%d) Requesting indirect ping of %s via %s",
 				i+1,
 				len(filteredNodes),
 				pack.node.Address(),
@@ -368,7 +368,7 @@ func listenUDPMulticast(port int) error {
 				if GetClusterName() == name {
 					msg, err := decodeMessage(addr.IP, msgBytes)
 					if err == nil {
-						logfTrace("Got multicast %v from %v code=%d\n",
+						logfTrace("Got multicast %v from %v code=%d",
 							msg.verb,
 							msg.sender.Address(),
 							msg.senderHeartbeat)
@@ -418,7 +418,7 @@ func multicastAnnounce(addr string) error {
 			return err
 		}
 
-		logfTrace("Sent announcement multicast to %v\n", fullAddr)
+		logfTrace("Sent announcement multicast to %v", fullAddr)
 
 		if GetMulticastAnnounceIntervalSeconds() > 0 {
 			time.Sleep(time.Second * time.Duration(GetMulticastAnnounceIntervalSeconds()))
@@ -443,14 +443,14 @@ func receiveMessageUDP(addr *net.UDPAddr, msgBytes []byte) error {
 		return err
 	}
 
-	logfTrace("Got %v from %v code=%d\n",
+	logfTrace("Got %v from %v code=%d",
 		msg.verb,
 		msg.sender.Address(),
 		msg.senderHeartbeat)
 
 	// Synchronize heartbeats
 	if msg.senderHeartbeat > 0 && msg.senderHeartbeat-1 > currentHeartbeat {
-		logfTrace("Heartbeat advanced from %d to %d\n",
+		logfTrace("Heartbeat advanced from %d to %d",
 			currentHeartbeat,
 			msg.senderHeartbeat-1)
 
@@ -530,7 +530,7 @@ func notePingResponseTime(pack *pendingAck) {
 	mean, stddev := pingdata.data()
 	sigmas := pingdata.nSigma(timeoutToleranceSigmas)
 
-	logfTrace("Got ACK in %dms (mean=%.02f stddev=%.02f sigmas=%.02f)\n",
+	logfTrace("Got ACK in %dms (mean=%.02f stddev=%.02f sigmas=%.02f)",
 		elapsedMillis,
 		mean,
 		stddev,
@@ -688,7 +688,7 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 		m.node.emitCounter--
 	}
 
-	logfTrace("Sent %v to %v\n", verb, node.Address())
+	logfTrace("Sent %v to %v", verb, node.Address())
 
 	return nil
 }
@@ -733,7 +733,7 @@ func updateStatusesFromMessage(msg message) {
 		// associated with the last known status, then we conclude that the
 		// message is old and we drop it.
 		if m.heartbeat < m.node.heartbeat {
-			logfDebug("Message is old (%d vs %d): dropping\n",
+			logfDebug("Message is old (%d vs %d): dropping",
 				m.node.heartbeat, m.heartbeat)
 
 			continue
