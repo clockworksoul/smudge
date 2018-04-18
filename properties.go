@@ -400,7 +400,7 @@ func getIntVar(key string, defaultVal int) int {
 
 		if err != nil {
 			logfWarn("Failed to parse env property %s: %s is not "+
-				"an integer. Using default.\n", key, valueString)
+				"an integer. Using default.", key, valueString)
 		} else {
 			valueInt = i
 		}

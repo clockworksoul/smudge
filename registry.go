@@ -66,7 +66,7 @@ func AddNode(node *Node) (*Node, error) {
 
 		_, n, err := knownNodes.add(node)
 
-		logfInfo("Adding host: %s (total=%d live=%d dead=%d)\n",
+		logfInfo("Adding host: %s (total=%d live=%d dead=%d)",
 			node.Address(),
 			knownNodes.length(),
 			knownNodes.lengthWithStatus(StatusAlive),
@@ -164,7 +164,7 @@ func RemoveNode(node *Node) (*Node, error) {
 
 		_, n, err := knownNodes.delete(node)
 
-		logfInfo("Removing host: %s (total=%d live=%d dead=%d)\n",
+		logfInfo("Removing host: %s (total=%d live=%d dead=%d)",
 			node.Address(),
 			knownNodes.length(),
 			knownNodes.lengthWithStatus(StatusAlive),
@@ -282,7 +282,7 @@ func parseNodeAddress(hostAndMaybePort string) (net.IP, uint16, error) {
 func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32, statusSource *Node) {
 	if node.status != status {
 		if heartbeat < node.heartbeat {
-			logfWarn("Decreasing known node heartbeat value from %d to %d\n",
+			logfWarn("Decreasing known node heartbeat value from %d to %d",
 				node.heartbeat,
 				heartbeat)
 		}
@@ -304,7 +304,7 @@ func updateNodeStatus(node *Node, status NodeStatus, heartbeat uint32, statusSou
 			deadNodeRetries.Unlock()
 		}
 
-		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)\n",
+		logfInfo("Updating host: %s to %s (total=%d live=%d dead=%d)",
 			node.Address(),
 			status,
 			knownNodes.length(),

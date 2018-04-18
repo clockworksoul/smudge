@@ -296,7 +296,7 @@ func receiveBroadcast(broadcast *Broadcast) {
 	broadcasts.Unlock()
 
 	if !contains {
-		logfInfo("Broadcast [%s]=%s\n",
+		logfInfo("Broadcast [%s]=%s",
 			label,
 			string(broadcast.Bytes()))
 
