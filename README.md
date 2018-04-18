@@ -286,5 +286,5 @@ func main() {
 
 ### Bringing your own logger
 
-Smudge comes with a `DefaultLogger` that prints out log messages to `stdout`. You can plug in your own logger by implementing the functions of the `Logger` interface and setting the logger by calling `smudge.SetLogger(MyCoolLogger)`.
+Smudge comes with a `DefaultLogger` that writes log messages to `stderr`. You can plug in your own logger by implementing the functions of the `Logger` interface and setting the logger by calling `smudge.SetLogger(MyCoolLogger)`.
 
