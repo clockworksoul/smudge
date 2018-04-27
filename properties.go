@@ -246,7 +246,9 @@ func GetMulticastEnabled() bool {
 // GetMulticastAnnounceIntervalSeconds returns the amount of seconds to wait between
 // multicast announcements.
 func GetMulticastAnnounceIntervalSeconds() int {
-	multicastAnnounceIntervalSeconds = getIntVar(EnvVarMulticastAnnounceIntervalSeconds, DefaultMulticastAnnounceIntervalSeconds)
+	if multicastAnnounceIntervalSeconds == 0 {
+		multicastAnnounceIntervalSeconds = getIntVar(EnvVarMulticastAnnounceIntervalSeconds, DefaultMulticastAnnounceIntervalSeconds)
+	}
 	return multicastAnnounceIntervalSeconds
 }
 
