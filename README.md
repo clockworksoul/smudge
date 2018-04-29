@@ -80,7 +80,7 @@ For IPv4 you can use the following commands:
 docker network create smudge
 docker run -i -t --network smudge --rm clockworksoul/smudge:latest /smudge
 # you can add nodes with the following command
-docker run -i -t --network smudge --rm clockworksould/smudge:latest /smudge -node 172.20.0.2
+docker run -i -t --network smudge --rm clockworksoul/smudge:latest /smudge -node 172.20.0.2
 ```
 
 To try out Smudge with IPv6 you can use the following commands:
@@ -89,7 +89,7 @@ To try out Smudge with IPv6 you can use the following commands:
 docker network create --ipv6 --subnet fd02:6b8:b010:9020:1::/80 smudge6
 docker run -i -t --network smudge6 --rm clockworksoul/smudge:latest /smudge
 # you can add nodes with the following command
-docker run -i -t --network smudge6 --rm clockworksould/smudge:latest /smudge -node [fd02:6b8:b010:9020:1::2]:9999
+docker run -i -t --network smudge6 --rm clockworksoul/smudge:latest /smudge -node [fd02:6b8:b010:9020:1::2]:9999
 ```
 
 ### Building the binary with the Go compiler
