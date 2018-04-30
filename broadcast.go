@@ -135,7 +135,7 @@ func BroadcastString(str string) error {
 // Bytes 18-21 Origin broadcast counter (06-09 for IPv4)
 // Bytes 22-23 Payload length (bytes) (10-11 for IPv4)
 // Bytes 24-NN Payload (12-NN for IPv4)
-func (b *Broadcast) encode() []byte {
+func (b *Broadcast) encode() ([]byte, error) {
 	size := 8 + ipLen + len(b.bytes)
 	bytes := make([]byte, size, size)
 
@@ -168,10 +168,10 @@ func (b *Broadcast) encode() []byte {
 	}
 
 	if bytes[0] == 0 {
-		panic("Sending empty broadcast")
+		return bytes, errors.New("Sending empty broadcast")
 	}
 
-	return bytes
+	return bytes, nil
 }
 
 // Message contents
@@ -271,6 +271,24 @@ func getBroadcastToEmit() *Broadcast {
 	}
 
 	return nil
+}
+
+// updateBroadcast is called when a broadcast message will be send
+// from the zero-address
+func updateBroadcast(b *Broadcast, newAddr *net.UDPAddr) {
+	logfInfo("Setting broadcast origin address to %s", newAddr.IP.String())
+	broadcasts.Lock()
+	delete(broadcasts.m, b.Label())
+	b.label = ""
+	b.origin = &Node{
+		ip:         newAddr.IP,
+		port:       uint16(GetListenPort()),
+		timestamp:  GetNowInMillis(),
+		pingMillis: PingNoData,
+	}
+	broadcasts.m[b.Label()] = b
+	indexCounter++
+	broadcasts.Unlock()
 }
 
 // receiveBroadcast is called by receiveMessageUDP when a broadcast payload

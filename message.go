@@ -207,9 +207,13 @@ func (m *message) encode() []byte {
 	}
 
 	if m.broadcast != nil {
-		bbytes := m.broadcast.encode()
-		for i, v := range bbytes {
-			bytes[p+i] = v
+		bbytes, err := m.broadcast.encode()
+		if err != nil {
+			logError(err)
+		} else {
+			for i, v := range bbytes {
+				bytes[p+i] = v
+			}
 		}
 	}
 

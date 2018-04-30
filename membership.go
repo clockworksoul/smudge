@@ -676,6 +676,11 @@ func transmitVerbGenericUDP(node *Node, forwardTo *Node, verb messageVerb, code 
 		}
 
 		broadcast.emitCounter--
+		// if the nodes listens on all interfaces mark on which interface we sent the broadcast
+		if broadcast.origin.IP().String() == "0.0.0.0" || broadcast.origin.IP().String() == "::" {
+			localAddr := c.LocalAddr().(*net.UDPAddr)
+			updateBroadcast(broadcast, localAddr)
+		}
 	}
 
 	_, err = c.Write(msg.encode())
