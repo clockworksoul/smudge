@@ -65,12 +65,12 @@ func Begin() {
 	logfInfo("Using listen IP: %s", listenIP)
 
 	// Use IPv6 address length if the listen IP is not an IPv4 address
-	if listenIP.To4() == nil {
+	if GetListenIP().To4() == nil {
 		ipLen = net.IPv6len
 	}
 
 	me := Node{
-		ip:         listenIP,
+		ip:         GetListenIP(),
 		port:       uint16(GetListenPort()),
 		timestamp:  GetNowInMillis(),
 		pingMillis: PingNoData,
