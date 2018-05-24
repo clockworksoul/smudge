@@ -403,7 +403,13 @@ func multicastAnnounce(addr string) error {
 		logError(err)
 		return err
 	}
-	laddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:0", GetListenIP().String()))
+	var fullLaddr string
+	if ipLen == net.IPv6len {
+		fullLaddr = fmt.Sprintf("[%s]:0", GetListenIP().String())
+	} else {
+		fullLaddr = fmt.Sprintf("%s:0", GetListenIP().String())
+	}
+	laddr, err := net.ResolveUDPAddr("udp", fullLaddr)
 	if err != nil {
 		logError(err)
 		return err
