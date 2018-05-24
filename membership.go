@@ -18,6 +18,7 @@ package smudge
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -402,14 +403,17 @@ func multicastAnnounce(addr string) error {
 		logError(err)
 		return err
 	}
-
+	laddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:0", GetListenIP().String()))
+	if err != nil {
+		logError(err)
+		return err
+	}
 	for {
-		c, err := net.DialUDP("udp", nil, address)
+		c, err := net.DialUDP("udp", laddr, address)
 		if err != nil {
 			logError(err)
 			return err
 		}
-
 		// Compose and send the multicast announcement
 		msgBytes := encodeMulticastAnnounceBytes()
 		_, err = c.Write(msgBytes)
@@ -418,7 +422,7 @@ func multicastAnnounce(addr string) error {
 			return err
 		}
 
-		logfTrace("Sent announcement multicast to %v", fullAddr)
+		logfTrace("Sent announcement multicast from %v to %v", laddr, fullAddr)
 
 		if GetMulticastAnnounceIntervalSeconds() > 0 {
 			time.Sleep(time.Second * time.Duration(GetMulticastAnnounceIntervalSeconds()))
