@@ -285,6 +285,30 @@ func guessMulticastAddress() string {
 	return multicastAddress
 }
 
+func getListenInterface() (*net.Interface, error) {
+	ifaces, err := net.Interfaces()
+	if err == nil {
+		for _, iface := range ifaces {
+			addrs, err := iface.Addrs()
+			if err != nil {
+				logfWarn("Can not get addresses of interface %s", iface.Name)
+				continue
+			}
+			for _, addr := range addrs {
+				ip, _, err := net.ParseCIDR(addr.String())
+				if err != nil {
+					continue
+				}
+				if ip.String() == GetListenIP().String() {
+					logfInfo("Found interface with listen IP: %s", iface.Name)
+					return &iface, nil
+				}
+			}
+		}
+	}
+	return nil, errors.New("Could not determine the interface of the listen IP address")
+}
+
 // Returns a random slice of valid ping/forward request targets; i.e., not
 // this node, and not dead.
 func getTargetNodes(count int, exclude ...*Node) []*Node {
@@ -347,7 +371,11 @@ func listenUDPMulticast(port int) error {
 	}
 
 	/* Now listen at selected port */
-	c, err := net.ListenMulticastUDP("udp", nil, listenAddress)
+	iface, err := getListenInterface()
+	if err != nil {
+		return err
+	}
+	c, err := net.ListenMulticastUDP("udp", iface, listenAddress)
 	if err != nil {
 		return err
 	}
@@ -410,6 +438,7 @@ func multicastAnnounce(addr string) error {
 		fullLaddr = fmt.Sprintf("%s:0", GetListenIP().String())
 	}
 	laddr, err := net.ResolveUDPAddr("udp", fullLaddr)
+
 	if err != nil {
 		logError(err)
 		return err
