@@ -18,7 +18,6 @@ package smudge
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -285,6 +284,7 @@ func guessMulticastAddress() string {
 	return multicastAddress
 }
 
+// getListenInterface gets the network interface for the listen IP
 func getListenInterface() (*net.Interface, error) {
 	ifaces, err := net.Interfaces()
 	if err == nil {
@@ -431,17 +431,9 @@ func multicastAnnounce(addr string) error {
 		logError(err)
 		return err
 	}
-	var fullLaddr string
-	if ipLen == net.IPv6len {
-		fullLaddr = fmt.Sprintf("[%s]:0", GetListenIP().String())
-	} else {
-		fullLaddr = fmt.Sprintf("%s:0", GetListenIP().String())
-	}
-	laddr, err := net.ResolveUDPAddr("udp", fullLaddr)
-
-	if err != nil {
-		logError(err)
-		return err
+	laddr := &net.UDPAddr{
+		IP:   GetListenIP(),
+		Port: 0,
 	}
 	for {
 		c, err := net.DialUDP("udp", laddr, address)
