@@ -34,6 +34,30 @@ Complete documentation is available from [the associated Godoc](https://godoc.or
 * Dead nodes are not immediately removed, but are instead periodically re-tried (with exponential backoff) for a time before finally being removed.
 * Smudge allows the transmission of short, arbitrary-content broadcasts to all healthy nodes.
 
+## How broadcasts work
+
+TL;DR a broadcast can be added to the local node by either calling a function or by receiving it from a remote node. A broadcast is send to other nodes a couple of times, piggybacked on membership messages. Then after a while the broadcast is removed from the node.
+
+### Emit counter
+
+The emit counter represents the number of times a broadcast message must be send to other nodes. An emit counter is calculated with the following formula: `int(2.5 * log(number of nodes) + 0.5)`. The larger the network the higher the emit counter will be, but the larger the network the slower the emit counter will grow.
+
+Examples:
+
+* 2 nodes: int(2.5 * log(2) + 0.5) = 2
+* 10 nodes: int(2.5 * log(10) + 0.5) = 6
+* 20 nodes: int(2.5 * log(20) + 0.5) = 8
+
+### Broadcasts
+
+When a broadcast is added to Smudge, either because it is added locally (by calling a function of the library) or is received from a remote node, an emit counter initialized with the formula above. The emit counter and the broadcast are then saved to a local buffer.
+
+The emit counter is used to track how many times a broadcast must be send to other nodes in the network. When the emit counter gets below a certain, large negative, thresh-hold the broadcast is removed from the buffer. Only broadcasts with a positive emit counter will be send when they are selected.
+
+When Smudge is about to send a membership message it looks for the broadcast with the largest emit counter. If multiple broadcasts have the same emit counter value, one is arbitrarily chosen. The selected broadcast can have a negative emit counter. If the emit counter is larger then 0 Smudge adds that broadcast to the membership message that will be send. In any case the emit counter is lowered by 1.
+
+When a broadcast is received from another node and that broadcast is already in the buffer it will be ignored. To achieve this the origin IP of the node that added the broadcast to the network is saved part of the broadcast.
+
 ## How to build
 
 Although Smudge is intended to be directly extended, a Dockerfile is provided for testing and proofs-of-function.
