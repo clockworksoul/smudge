@@ -44,9 +44,9 @@ The emit counter represents the number of times a broadcast message must be send
 
 Examples:
 
-* 2 nodes: int(2.5 * log(2) + 0.5) = 2
-* 10 nodes: int(2.5 * log(10) + 0.5) = 6
-* 20 nodes: int(2.5 * log(20) + 0.5) = 8
+* 2 nodes: `int(2.5 * log(2) + 0.5) = 2`
+* 10 nodes: `int(2.5 * log(10) + 0.5) = 6`
+* 20 nodes: `int(2.5 * log(20) + 0.5) = 8`
 
 ### Broadcasts
 
@@ -54,9 +54,9 @@ When a broadcast is added to Smudge, either because it is added locally (by call
 
 The emit counter is used to track how many times a broadcast must be send to other nodes in the network. When the emit counter gets below a certain, large negative, thresh-hold the broadcast is removed from the buffer. Only broadcasts with a positive emit counter will be send when they are selected.
 
-When Smudge is about to send a membership message it looks for the broadcast with the largest emit counter. If multiple broadcasts have the same emit counter value, one is arbitrarily chosen. The selected broadcast can have a negative emit counter. If the emit counter is larger then 0 Smudge adds that broadcast to the membership message that will be send. In any case the emit counter is lowered by 1.
+When Smudge is about to send a membership message it looks for the broadcast with the largest emit counter. If multiple broadcasts have the same emit counter value, one is arbitrarily chosen. The selected broadcast can have a negative emit counter. If the emit counter is larger then `0` Smudge adds that broadcast to the membership message that will be send. In any case the emit counter is lowered by `1`.
 
-When a broadcast is received from another node and that broadcast is already in the buffer it will be ignored. To achieve this the origin IP of the node that added the broadcast to the network is saved part of the broadcast.
+When a broadcast is received from another node and that broadcast is already in the buffer it will be ignored. To achieve this the origin IP of the node that added the broadcast to the network is saved as part of the broadcast.
 
 ## How to build
 
