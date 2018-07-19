@@ -398,7 +398,7 @@ func getIntVar(key string, defaultVal int) int {
 	valueInt := defaultVal
 
 	if valueString != "" {
-		i, err := strconv.Atoi(key)
+		i, err := strconv.Atoi(valueString)
 
 		if err != nil {
 			logfWarn("Failed to parse env property %s: %s is not "+
