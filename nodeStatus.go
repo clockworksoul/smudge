@@ -26,7 +26,7 @@ const (
 	// StatusAlive indicates that a node is alive and healthy.
 	StatusAlive
 
-	// StatusDead indicatates that a node is suspected of being dead.
+	// StatusSuspected indicatates that a node is suspected of being dead.
 	StatusSuspected
 
 	// StatusDead indicatates that a node is dead and no longer healthy.
