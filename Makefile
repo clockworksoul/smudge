@@ -4,6 +4,9 @@
 ## Project Info
 ############################
 PROJECT = smudge
+GIT_URL = github.com
+GIT_ORGANIZATION = clockworksoul
+GIT_REPOSITORY = $(GIT_URL)/$(GIT_ORGANIZATION)/$(PROJECT)
 
 ############################
 ## Docker Registry Info
@@ -36,12 +39,12 @@ install:
 	echo
 
 test: 
-	@docker build --target test -t foo_smudge_foo .
-	@docker rmi foo_smudge_foo
+	@docker build --target test -t foo_$(PROJECT)_foo .
+	@docker rmi foo_$(PROJECT)_foo
 
 build: clean
 	mkdir -p bin
-	@go build -a -installsuffix cgo -o bin/smudge github.com/clockworksoul/smudge/smudge
+	@go build -a -installsuffix cgo -o bin/$(PROJECT) $(GIT_REPOSITORY)
 
 image:
 	@docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
