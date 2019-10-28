@@ -4,7 +4,7 @@
 
 # Part 1: Compile the binary in a containerized Golang environment
 #
-FROM golang:1.10 as test
+FROM golang:1.13 as test
 
 WORKDIR /go/bin/
 
@@ -15,7 +15,7 @@ RUN go test -v github.com/clockworksoul/smudge
 
 # Part 2: Compile the binary in a containerized Golang environment
 #
-FROM golang:1.10 as build
+FROM golang:1.13 as build
 
 WORKDIR /go/bin/
 
