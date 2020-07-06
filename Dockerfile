@@ -6,18 +6,16 @@
 #
 FROM golang:1.13 as test
 
-WORKDIR /go/bin/
-
 COPY . /go/src/github.com/clockworksoul/smudge
 
-RUN go test -v github.com/clockworksoul/smudge
+WORKDIR /go/src/github.com/clockworksoul/smudge
+
+RUN go mod verify && go test -v github.com/clockworksoul/smudge
 
 
-# Part 2: Compile the binary in a containerized Golang environment
+# Part 2: Compile the binary in a containerized Go environment
 #
 FROM golang:1.13 as build
-
-WORKDIR /go/bin/
 
 COPY . /go/src/github.com/clockworksoul/smudge
 

@@ -1,8 +1,8 @@
 language: go
 
 go:
-  - 1.7.x
+- 1.x
 
-install:
-  - go get github.com/clockworksoul/smudge
-
+script: 
+  - go mod verify
+  - go test -coverprofile cp.out -v ./...

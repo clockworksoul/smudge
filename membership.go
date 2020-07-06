@@ -69,15 +69,7 @@ func Begin() {
 		ipLen = net.IPv6len
 	}
 
-	me := Node{
-		ip:         GetListenIP(),
-		port:       uint16(GetListenPort()),
-		timestamp:  GetNowInMillis(),
-		pingMillis: PingNoData,
-	}
-
-	thisHostAddress = me.Address()
-	thisHost = &me
+	initGlobalHostEnvironment()
 
 	logInfo("My host address:", thisHostAddress)
 
@@ -328,6 +320,17 @@ func getTargetNodes(count int, exclude ...*Node) []*Node {
 	}
 
 	return filteredNodes
+}
+
+func initGlobalHostEnvironment() {
+	thisHost = &Node{
+		ip:         GetListenIP(),
+		port:       uint16(GetListenPort()),
+		timestamp:  GetNowInMillis(),
+		pingMillis: PingNoData,
+	}
+
+	thisHostAddress = thisHost.Address()
 }
 
 func listenUDP(port int) error {
