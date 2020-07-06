@@ -167,10 +167,6 @@ func (b *Broadcast) encode() []byte {
 		bytes[i+p] = by
 	}
 
-	if bytes[0] == 0 {
-		panic("Sending empty broadcast")
-	}
-
 	return bytes
 }
 
