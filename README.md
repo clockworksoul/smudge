@@ -3,6 +3,7 @@
 [![GoDoc](https://godoc.org/github.com/clockworksoul/smudge?status.svg)](https://godoc.org/github.com/clockworksoul/smudge)
 [![Build Status](https://travis-ci.org/clockworksoul/smudge.svg?branch=master)](https://travis-ci.org/clockworksoul/smudge)
 [![Go Report Card](https://goreportcard.com/badge/github.com/clockworksoul/smudge)](https://goreportcard.com/report/github.com/clockworksoul/smudge)
+[![Maintainability](https://api.codeclimate.com/v1/badges/651f423082d8fc38b399/maintainability)](https://codeclimate.com/github/clockworksoul/smudge/maintainability)
 
 <img src="https://github.com/clockworksoul/smudge/raw/master/logo/logo.png" width="150">
 
