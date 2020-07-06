@@ -17,8 +17,51 @@ limitations under the License.
 package smudge
 
 import (
+	"fmt"
+	"net"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
+
+func TestAddNode(t *testing.T) {
+	// Start empty
+	require.Empty(t, knownNodes.nodes)
+
+	n := testNode()
+	n.status = StatusUnknown
+
+	// Adding a nodes with an unknown status sets the status to ALIVE
+	AddNode(n)
+	require.Equal(t, StatusAlive, n.status)
+
+	key := fmt.Sprintf("%s:%d", n.ip.String(), n.port)
+
+	// Also, it adds exactly one node: this one.
+	require.Equal(t, 1, len(knownNodes.values()))
+	require.NotNil(t, knownNodes.nodes[key])
+	require.Equal(t, n, knownNodes.nodes[key])
+
+	// Adding again is a no-op
+	AddNode(n)
+	require.Equal(t, 1, len(knownNodes.values()))
+
+	t.Log(n.status)
+}
+
+func TestCreateNodeByAddress(t *testing.T) {
+	s := "127.0.0.1:1234"
+
+	expected := &Node{
+		ip:   net.IPv4(127, 0, 0, 1),
+		port: 1234,
+	}
+
+	node, err := CreateNodeByAddress(s)
+	require.Nil(t, err)
+	require.Equal(t, expected.ip, node.ip)
+	require.Equal(t, expected.port, node.port)
+}
 
 func TestIPv4(t *testing.T) {
 	s := "127.0.0.1"

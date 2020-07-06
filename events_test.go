@@ -41,11 +41,11 @@ func TestBroadcastListeners(t *testing.T) {
 	require.Nil(t, l.broadcast)
 
 	bc := testBroadcast()
-	doBroadcastUpdate(&bc)
+	doBroadcastUpdate(bc)
 
 	require.NotNil(t, l.broadcast)
 
-	require.Equal(t, &bc, l.broadcast)
+	require.Equal(t, bc, l.broadcast)
 }
 
 type TestStatusListener struct {
@@ -72,8 +72,8 @@ func TestStatusListeners(t *testing.T) {
 	n := testNode()
 	s := StatusAlive
 
-	doStatusUpdate(&n, s)
+	doStatusUpdate(n, s)
 
 	require.Equal(t, s, l.status)
-	require.Equal(t, &n, l.node)
+	require.Equal(t, n, l.node)
 }

@@ -191,7 +191,6 @@ func TestEncodeDecode1Member(t *testing.T) {
 	}
 
 	decoded, err := decodeMessage(ip, bytes)
-	t.Log("bytes: ", bytes)
 	decoded.sender.timestamp = timestamp
 	decoded.members[0].node.timestamp = timestamp
 	decoded.members[0].source.timestamp = timestamp

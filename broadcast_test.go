@@ -41,18 +41,18 @@ var (
 		expectedIndex)
 )
 
-func testNode() Node {
-	return Node{
+func testNode() *Node {
+	return &Node{
 		ip:   expectedOriginIP,
 		port: expectedOriginPort,
 	}
 }
 
-func testBroadcast() Broadcast {
+func testBroadcast() *Broadcast {
 	node := testNode()
 
-	return Broadcast{
-		origin:      &node,
+	return &Broadcast{
+		origin:      node,
 		bytes:       expectedBytes,
 		index:       expectedIndex,
 		emitCounter: expectedEmitCounter,
@@ -90,27 +90,27 @@ func TestGetBroadcastToEmit(t *testing.T) {
 	bcc.emitCounter = 10
 	bcc.index = 3
 
-	broadcasts.m["a"] = &bca
-	broadcasts.m["b"] = &bcb
-	broadcasts.m["c"] = &bcc
+	broadcasts.m["a"] = bca
+	broadcasts.m["b"] = bcb
+	broadcasts.m["c"] = bcc
 
 	bc1 := getBroadcastToEmit()
-	require.Equal(t, &bcb, bc1, fmt.Sprintf("Expected %v, got %v", bcb, bc1))
+	require.Equal(t, bcb, bc1, fmt.Sprintf("Expected %v, got %v", bcb, bc1))
 
 	delete(broadcasts.m, "b")
 	bc2 := getBroadcastToEmit()
-	require.Equal(t, &bcc, bc2, fmt.Sprintf("Expected %v, got %v", bcc, bc2))
+	require.Equal(t, bcc, bc2, fmt.Sprintf("Expected %v, got %v", bcc, bc2))
 
 	delete(broadcasts.m, "c")
 	bc3 := getBroadcastToEmit()
-	require.Equal(t, &bca, bc3, fmt.Sprintf("Expected %v, got %v", bcc, bc3))
+	require.Equal(t, bca, bc3, fmt.Sprintf("Expected %v, got %v", bcc, bc3))
 
 	delete(broadcasts.m, "a")
 }
 
 func TestBroadcastBytes(t *testing.T) {
 	h := testNode()
-	thisHost = &h
+	thisHost = h
 
 	require.Empty(t, broadcasts.m, "Broadcasts map isn't empty")
 
@@ -135,11 +135,11 @@ func TestReceiveBroadcast(t *testing.T) {
 
 	require.Empty(t, broadcasts.m, "Broadcasts map isn't empty")
 
-	receiveBroadcast(&bc)
+	receiveBroadcast(bc)
 
 	require.True(t, broadcasts.m[expectedLabel] != nil, "Broadcast value is nil")
 
-	receiveBroadcast(&bc)
+	receiveBroadcast(bc)
 
 	require.True(t, len(broadcasts.m) == 1, "Added another where it shouldn't have")
 }
