@@ -3,19 +3,5 @@ language: go
 go:
 - 1.x
 
-env:
-  global:
-    - CC_TEST_REPORTER_ID=07c62de745fe114a9a6900908aa1de30a3e40254c19fc6529818a0a814c9a36f
-
-before_script:
-  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-  - chmod +x ./cc-test-reporter
-  - ./cc-test-reporter before-build
-
 script: 
-  - go mod verify
   - go test -coverprofile cp.out -v ./...
-
-after_script:
-  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT\
-  - if [[ "$TRAVIS_TEST_RESULT" == 0 ]]; then ./cc-test-reporter upload-coverage -i cp.out; fi
